@@ -1,0 +1,39 @@
+defprimitive u8 uint 1;
+defprimitive u16 uint 2;
+defprimitive u32 uint 4;
+defprimitive s8 sint 1;
+defprimitive s16 sint 2;
+defprimitive s32 sint 4;
+defprimitive f32 float 4;
+
+// Comments working
+
+struct moo {
+	s32* po;
+	f32** bar; 			// great huh
+	f32*[3] array;
+	f32[2,2] array2;
+}
+
+struct fisk {
+	s32* a;
+	f32 b;
+	moo c;
+	selfref[3] x;
+	s32[3] y;
+}
+
+struct selfref {
+	selfref *next;
+	selfref *prev;
+}
+
+struct aligntest {
+    u32 b;
+    s8 a;
+}
+
+struct aligntest2 {
+    aligntest a;
+    aligntest b;
+}
