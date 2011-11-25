@@ -1,11 +1,9 @@
 import blobc
 
 class M68kGenerator(object):
-    def __init__(self, filename):
+    def __init__(self, fh, filename):
         self.filename = filename
         self.targmach = blobc.TargetMachine(pointer_size=4, endian='big')
-
-    def set_output(self, fh):
         self.fh = fh
         self.fh.write('; Generated automatically by blobc.py from %s; do not edit.\n' % (self.filename))
 

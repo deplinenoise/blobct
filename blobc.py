@@ -21,8 +21,8 @@ parser.add_argument('-l', metavar='<language>', dest='lang', required=True,
 
 args = parser.parse_args()
 
-def run_generator(gen, fh, filename):
-    gen.set_output(fh)
+def run_generator(gencls, fh, filename):
+    gen = gencls(fh, filename)
 
     for t in type_system.itertypes():
         if isinstance(t, blobc.Typesys.PrimitiveType):
@@ -39,13 +39,11 @@ try:
 
     type_system = blobc.compile_types(parse_tree)
 
-    gen = languages[args.lang](args.input_fn)
-
     if args.output_fn is not None:
         with open(args.output_fn, 'w') as fh:
-            run_generator(gen, fh, args.input_fn)
+            run_generator(languages[args.lang], fh, args.input_fn)
     else:
-        run_generator(gen, sys.stdout, args.input_fn)
+        run_generator(languages[args.lang], sys.stdout, args.input_fn)
 
 except blobc.ParseError as ex:
     print ex.msg

@@ -1,14 +1,12 @@
 import blobc.Typesys
+import md5
 
 class CGenerator(object):
 
-    def __init__(self, filename):
+    def __init__(self, fh, filename):
         self.filename = filename
-        self.__structs = []
-
-    def set_output(self, fh):
-        import md5
         self.fh = fh
+        self.__structs = []
         m = md5.new()
         m.update(self.filename)
         self.guard = 'BLOBC_%s' % (m.hexdigest())
