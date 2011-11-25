@@ -1,7 +1,7 @@
 import blobc
 
 class M68kGenerator(object):
-    def __init__(self, fh, filename):
+    def __init__(self, fh, filename, aux_fh=None, output_fn=None):
         self.filename = filename
         self.targmach = blobc.TargetMachine(pointer_size=4, endian='big')
         self.fh = fh
