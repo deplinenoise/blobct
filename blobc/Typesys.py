@@ -154,6 +154,31 @@ class ArrayType(BaseType):
     def __str__(self):
         return self.__str
 
+class EnumMember(object):
+    def __init__(self, name, value):
+        self.name, self.value = name, value
+
+class EnumType(BaseType):
+    def __init__(self, name, members, loc):
+        BaseType.__init__(self)
+        self.name, self.loc, self.members = name, loc, members
+
+    def compute_size(self, targmach):
+        return 4, 4
+
+    def set_impl_object(self, cls):
+        self.__implobj = cls
+
+    def default_value(self):
+        return getattr(self.__implobj, self.members[0].name)
+
+    def create_value(self, v):
+        return v
+
+    def serialize(self, serializer, v):
+        fmt = '>I' if serializer.targmach().big_endian() else '<I'
+        serializer.write(struct.pack(fmt, v.value()))
+
 class StructMember(object):
     def __init__(self, mname, mtype, loc):
         self.mname = mname
@@ -342,6 +367,12 @@ class TypeSystem(object):
         object.__init__(self)
         self.__types = {}
         self.__structs = []
+        self.__enums = []
+        self.__raw_types = {}
+
+        for p in raw_data:
+            if isinstance(p, RawStructType):
+                self.__raw_types[p.name] = p
 
         # pass 1: add primitives & struct shells so we can resolve all named types
         for p in raw_data:
@@ -349,6 +380,12 @@ class TypeSystem(object):
                 self.__add_primitive(p)
             elif isinstance(p, RawStructType):
                 self.__add_struct(p)
+            elif isinstance(p, RawEnumType):
+                self.__add_enum(p)
+            elif isinstance(p, RawImportStmt):
+                raise TypeSystemException(p.loc, "unresolved import statements present")
+            elif isinstance(p, GeneratorConfig):
+                continue
             else:
                 assert False
 
@@ -388,6 +425,26 @@ class TypeSystem(object):
         self.__types[p.name] = t
         self.__structs.append(t)
 
+    def __add_enum(self, p):
+        if self.__types.has_key(p.name):
+            raise TypeSystemException(p.loc, "duplicate type name %s" % (p.name))
+
+        ordinal = 0
+        members = []
+        memnames = {}
+        for m in p.members:
+            if memnames.has_key(m.name):
+                raise TypeSystemException(m.loc, 'duplicate enum member %s' % (m.name))
+            memnames[m.name] = True
+            if m.value:
+                ordinal = m.value
+            members.append(EnumMember(m.name, ordinal))
+            ordinal += 1
+
+        t = EnumType(p.name, members, p.loc)
+        self.__types[p.name] = t
+        self.__enums.append(t)
+
     def __resolve_type(self, t):
         if isinstance(t, RawSimpleType):
             return self.__types[t.name]
@@ -402,6 +459,23 @@ class TypeSystem(object):
     def __add_struct_members(self, p):
         struct = self.__types[p.name]
 
+        # add all base structs in defined order
+        for opt in p.get_options('base'):
+            if opt.pos_param_count() != 1:
+                raise TypeSystemException(p.loc,
+                        "'base' option must have a single "\
+                        "positional parameter, the base struct")
+
+            base_name = opt.pos_param(0)
+            base_type = self.__raw_types.get(base_name)
+            if base_type is None:
+                raise TypeSystemException(p.loc, "'base' struct %s is undefined" % (base_name))
+
+            for mem in base_type.members:
+                t = self.__resolve_type(mem.type)
+                struct.add_member(StructMember(mem.name, t, mem.loc))
+
+        # add all vanilla members
         for mem in p.members:
             t = self.__resolve_type(mem.type)
             struct.add_member(StructMember(mem.name, t, mem.loc))

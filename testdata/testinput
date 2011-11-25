@@ -1,10 +1,8 @@
 defprimitive u8 uint 1;
 defprimitive u16 uint 2;
 defprimitive u32 uint 4;
-defprimitive s8 sint 1;
-defprimitive s16 sint 2;
-defprimitive s32 sint 4;
-defprimitive f32 float 4;
+
+import "testdata/other_file"
 
 // Comments working
 
@@ -15,7 +13,7 @@ struct moo {
 	f32[2,2] array2;
 }
 
-struct fisk {
+struct fisk : base(fisk_base), comment(text="This is a great struct!") {
 	s32* a;
 	f32 b;
 	moo c;

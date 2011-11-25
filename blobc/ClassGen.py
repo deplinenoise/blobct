@@ -2,7 +2,6 @@
 from Typesys import *
 
 class StructBase(object):
-
     def __init__(self, **kwargs):
         cls = type(self)
         self.__dict__['_StructBase__data'] = {}
@@ -41,6 +40,28 @@ class StructBase(object):
         mems = ["%s = %s" % (m.mname, self.__str_value(m.mname)) for m in cls.srctype.members]
         return '%s { %s }' % (cls.srctype.name, '; '.join(mems))
 
+class EnumValue(object):
+    def __init__(self, name, value):
+        self.__name, self.__value = name, value
+
+    def name(self):
+        return self.__name
+
+    def value(self):
+        return self.__value
+
+    def __str__(self):
+        return self.__name
+
+class EnumImpl(object):
+    def __init__(self, srctype):
+        self.__srctype = srctype
+        for m in srctype.members:
+            setattr(self, m.name, EnumValue(m.name, m.value))
+
+    def __str__(self):
+        return 'enum %s' % (self.__srctype.name)
+
 def make_class(t, typesys):
     fields = {}
     for mem in t.members:
@@ -52,9 +73,12 @@ def make_class(t, typesys):
 
 def generate_classes(typesys, global_dict):
     for t in typesys.itertypes():
-        if not isinstance(t, StructType):
-            continue
-        cls = make_class(t, typesys)
-        t.set_class_object(cls)
-        global_dict[t.name] = cls
+        if isinstance(t, StructType):
+            cls = make_class(t, typesys)
+            t.set_class_object(cls)
+            global_dict[t.name] = cls
+        elif isinstance(t, EnumType):
+            impl = EnumImpl(t)
+            global_dict[t.name] = impl
+            t.set_impl_object(impl)
 

@@ -1,20 +1,28 @@
 import blobc
 import blobc.Typesys
+from . import GeneratorBase
 import md5
 
-
-class CGenerator(object):
+class CGenerator(GeneratorBase):
 
     def __init__(self, fh, filename, aux_fh, output_fn):
+        GeneratorBase.__init__(self)
         self.filename = filename
         self.output_fn = output_fn
         self.fh = fh
         self.aux_fh = aux_fh
+        self.__imports = []
+        self.__enums = []
+        self.__primitives = []
         self.__structs = []
         self.__weights = {}
+        self.__indent = '\t'
+        self.__obrace = ' {\n'
         m = md5.new()
         m.update(self.filename)
         self.guard = 'BLOBC_%s' % (m.hexdigest())
+
+    def start(self):
         self.fh.write('#ifndef %s\n#define %s\n' % (self.guard, self.guard))
         self.fh.write('\n#include <inttypes.h>\n\n')
 
@@ -38,6 +46,23 @@ class CGenerator(object):
             self.aux_fh.write('#error please define ALIGNOF for your compiler\n')
             self.aux_fh.write('#endif\n')
             self.aux_fh.write('#endif\n\n')
+
+    def configure_indent_style(self, style, size=4):
+        if style == 'spaces':
+            self.__indent = size * ' '
+        elif style == 'tabs':
+            self.__indent = '\t'
+        else:
+            self.bad_option("unsupported style '%s'; use one of 'spaces' or 'tabs'" %
+                    (style))
+
+    def configure_brace_style(self, style):
+        if style == 'k&r':
+            self.__obrace = ' {\n'
+        elif style == 'linux':
+            self.__obrace = '\n{\n'
+        else:
+            self.bad_option(o, "unsupported indentation style '%s'" % (style))
 
     def vardef(self, t, var):
         if isinstance(t, blobc.Typesys.StructType):
@@ -64,11 +89,20 @@ class CGenerator(object):
         else:
             assert false
 
+    def visit_import(self, fn):
+        self.__imports.append(fn)
+
     def visit_primitive(self, t):
-        self.fh.write('typedef %s %s;\n' % (self.find_prim(t), t.name))
+        if not t.loc.is_import:
+            self.__primitives.append(t)
+
+    def visit_enum(self, t):
+        if not t.loc.is_import:
+            self.__enums.append(t)
 
     def visit_struct(self, t):
-        self.__structs.append(t)
+        if not t.loc.is_import:
+            self.__structs.append(t)
 
     def __weight_of(self, t):
         w = self.__weights.get(t)
@@ -84,21 +118,57 @@ class CGenerator(object):
     def __compare_structs(self, a, b):
         return cmp(self.__weight_of(a), self.__weight_of(b))
 
+    def __separator(self, tag):
+        l = len(tag)
+        left = 70 / 2 - l / 2
+        right = 70 - l - left
+        self.fh.write('\n/*%s %s %s*/\n\n' % ('-' * left, tag, '-' * right))
+
     def finish(self):
         # Sort structs in complexity order so later structs can embed eariler structs.
         self.__structs.sort(self.__compare_structs)
 
         self.fh.write('\n')
 
+        if len(self.__imports) > 0:
+            self.__separator('imports')
+
+        for filename in self.__imports:
+            self.fh.write('#include "%s.h"\n' % (filename))
+
+        if len(self.__primitives) > 0:
+            self.__separator('primitives')
+
+        for t in self.__primitives:
+            self.fh.write('typedef %s %s;\n' % (self.find_prim(t), t.name))
+
+        if len(self.__structs) > 0:
+            self.__separator('predeclarations')
+
         for t in self.__structs:
             self.fh.write('struct %s_TAG;\n' % (t.name))
 
-        self.fh.write('\n')
+        if len(self.__enums) > 0:
+            self.__separator('enums')
+
+        for t in self.__enums:
+            self.fh.write('typedef enum%s' % (self.__obrace))
+            first = True
+            for x in xrange(0, len(t.members)):
+                m = t.members[x]
+                self.fh.write('%s%s_%s = %d' % (self.__indent, t.name, m.name, m.value))
+                if x < len(t.members) - 1:
+                    self.fh.write(',');
+                self.fh.write('\n')
+            self.fh.write('} %s;\n' % (t.name))
+
+        if len(self.__structs) > 0:
+            self.__separator('structs')
 
         for t in self.__structs:
-            self.fh.write('\ntypedef struct %s_TAG {\n' % (t.name))
+            self.fh.write('\ntypedef struct %s_TAG%s' % (t.name, self.__obrace))
             for m in t.members:
-                self.fh.write('\t')
+                self.fh.write(self.__indent)
                 self.fh.write(self.vardef(m.mtype, ' ' + m.mname))
                 self.fh.write(';\n');
             self.fh.write('} %s;\n' % (t.name))
