@@ -32,6 +32,8 @@ class CGenerator(object):
             self.aux_fh.write('#ifndef ALIGNOF\n')
             self.aux_fh.write('#if defined(__GNUC__) || defined(_MSC_VER)\n')
             self.aux_fh.write('#define ALIGNOF(x) __alignof(x)\n')
+            self.aux_fh.write('#elif defined(AMIGA)\n')
+            self.aux_fh.write('#define ALIGNOF(x) 4\n')
             self.aux_fh.write('#else\n')
             self.aux_fh.write('#error please define ALIGNOF for your compiler\n')
             self.aux_fh.write('#endif\n')
@@ -109,7 +111,7 @@ class CGenerator(object):
 
         for t in self.__structs:
             sizes = [(tm, tm.size_align(t)) for tm in self.__tms]
-            aux.write('char __sizecheck_%s [\n' % (t.name))
+            aux.write('typedef char __sizecheck_%s [\n' % (t.name))
             for tm, (size, align) in sizes:
                 aux.write('(sizeof(void*) == %d && ALIGNOF(void*) == %d && \n' % (
                     tm.pointer_size(), tm.pointer_align()))
