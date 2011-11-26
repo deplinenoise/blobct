@@ -124,23 +124,26 @@ class TestParser(unittest.TestCase):
     def test_option_bare(self):
         p = blobc.parse_string("""struct foo : fiskrens { }""")
         foo = p[0]
-        self.assertEqual(len(foo.options), 1)
-        self.assertEqual(foo.options[0].name, "fiskrens")
-        self.assertEqual(foo.options[0].pos_param_count(), 0)
+        options = foo.get_options('fiskrens')
+        self.assertEqual(len(options), 1)
+        self.assertEqual(options[0].name, "fiskrens")
+        self.assertEqual(options[0].pos_param_count(), 0)
 
     def test_option_one_param_no_value(self):
         p = blobc.parse_string("""struct foo : fiskrens("bar") { }""")
         foo = p[0]
-        self.assertEqual(foo.options[0].name, "fiskrens")
-        self.assertEqual(foo.options[0].pos_param_count(), 1)
-        self.assertEqual(foo.options[0].pos_param(0), "bar")
+        options = foo.get_options('fiskrens')
+        self.assertEqual(options[0].name, "fiskrens")
+        self.assertEqual(options[0].pos_param_count(), 1)
+        self.assertEqual(options[0].pos_param(0), "bar")
     
     def test_option_one_param_with_value(self):
         p = blobc.parse_string("""struct foo : fiskrens(bar=yep) { }""")
         foo = p[0]
-        self.assertEqual(foo.options[0].name, "fiskrens")
-        self.assertEqual(foo.options[0].pos_param_count(), 0)
-        self.assertEqual(foo.options[0].kw_param("bar"), "yep")
+        options = foo.get_options('fiskrens')
+        self.assertEqual(options[0].name, "fiskrens")
+        self.assertEqual(options[0].pos_param_count(), 0)
+        self.assertEqual(options[0].kw_param("bar"), "yep")
 
     def test_option_multi_params(self):
         p = blobc.parse_string('''
@@ -150,19 +153,21 @@ class TestParser(unittest.TestCase):
                     qux(visst="serru")
                 { }''')
         foo = p[0]
-        self.assertEqual(len(foo.options), 3)
+        options = foo.get_options("a")
+        self.assertEqual(len(options), 1)
+        self.assertEqual(options[0].pos_param_count(), 1)
+        self.assertEqual(options[0].pos_param(0), "foo")
+        self.assertEqual(options[0].kw_param("bar"), 89)
+        self.assertEqual(options[0].kw_param("baz"), "tjoho")
 
-        self.assertEqual(foo.options[0].name, "a")
-        self.assertEqual(foo.options[0].pos_param(0), "foo")
-        self.assertEqual(foo.options[0].kw_param("bar"), 89)
-        self.assertEqual(foo.options[0].kw_param("baz"), "tjoho")
+        options = foo.get_options("qux")
+        self.assertEqual(len(options), 2)
+        self.assertEqual(options[0].name, "qux")
+        self.assertEqual(options[0].pos_param_count(), 0)
 
-        self.assertEqual(foo.options[1].name, "qux")
-        self.assertEqual(foo.options[1].pos_param_count(), 0)
-
-        self.assertEqual(foo.options[2].name, "qux")
-        self.assertEqual(foo.options[2].pos_param_count(), 0)
-        self.assertEqual(foo.options[2].kw_param("visst"), "serru")
+        self.assertEqual(options[1].name, "qux")
+        self.assertEqual(options[1].pos_param_count(), 0)
+        self.assertEqual(options[1].kw_param("visst"), "serru")
 
     def test_import(self):
         p = blobc.parse_string('''import "foo/bar"''')
@@ -192,6 +197,25 @@ class TestParser(unittest.TestCase):
         m0 = p[0].members[0]
         self.assertIsInstance(m0.type, RawPointerType)
         self.assertIsInstance(m0.type.basetype, RawVoidType)
+
+    def test_member_option(self):
+        p = blobc.parse_string('''struct foo {
+                void *foo : foo, bar("foo", a="another string");
+        }''')
+        self.assertEqual(len(p), 1)
+        self.assertEqual(p[0].name, "foo")
+        self.assertEqual(len(p[0].members), 1)
+        m0 = p[0].members[0]
+        options = m0.get_options('foo')
+        self.assertEqual(len(options), 1)
+        self.assertEqual(options[0].pos_param_count(), 0)
+
+        options = m0.get_options('bar')
+        self.assertEqual(len(options), 1)
+        self.assertEqual(options[0].pos_param_count(), 1)
+        self.assertEqual(options[0].pos_param(0), "foo")
+        self.assertTrue(options[0].has_kw_param("a"))
+        self.assertEqual(options[0].kw_param("a"), "another string")
 
 class TestTypeSystem(unittest.TestCase):
 

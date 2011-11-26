@@ -51,18 +51,22 @@ class RawEnumMember(object):
     def __init__(self, name, value, loc):
         self.name, self.value, self.loc = name, value, loc
 
-class RawStructType(object):
+class OptionContainer(object):
+    def __init__(self, options):
+        self.__options = options
+
+    def get_options(self, tag):
+        if self.__options:
+            return [o for o in self.__options if o.name == tag]
+        else:
+            return []
+
+class RawStructType(OptionContainer):
     def __init__(self, name, members, options, loc):
+        OptionContainer.__init__(self, options)
         self.name = name
         self.members = members
         self.loc = loc
-        self.options = options
-
-    def get_options(self, tag):
-        if self.options:
-            return [o for o in self.options if o.name == tag]
-        else:
-            return []
 
 class RawType(object):
     def __init__(self, loc):
@@ -84,9 +88,9 @@ class RawArrayType(RawType):
         self.basetype = basetype
         self.dims = dims
 
-class RawStructMember(object):
-    def __init__(self, type, name, loc):
-        object.__init__(self)
+class RawStructMember(OptionContainer):
+    def __init__(self, type, name, options, loc):
+        OptionContainer.__init__(self, options)
         self.type = type
         self.name = name
         self.loc = loc

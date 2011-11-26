@@ -215,12 +215,16 @@ class Parser(object):
             self.error("void type is not instantiatable")
         return t
 
-    def r_member(self):
+    def r_struct_member(self):
         loc = self.tokenizer.loc()
         t = self.r_type()
         n = self.expect(TOK_WORD)
+        if self.accept(TOK_PUNCT, ':'):
+            options = self.sep_nonempy_list(self.r_named_option, ',')
+        else:
+            options = []
         self.expect(TOK_PUNCT, ';')
-        r = RawStructMember(t, n, loc)
+        r = RawStructMember(t, n, options, loc)
         return r
 
     def r_option_param(self):
@@ -276,7 +280,7 @@ class Parser(object):
             options = []
 
         self.expect(TOK_PUNCT, '{')
-        members = self.repeat(self.r_member, TOK_PUNCT, '}')
+        members = self.repeat(self.r_struct_member, TOK_PUNCT, '}')
         self.expect(TOK_PUNCT, '}')
         self.accept(TOK_PUNCT, ';')
         return RawStructType(name, members, options, loc)
