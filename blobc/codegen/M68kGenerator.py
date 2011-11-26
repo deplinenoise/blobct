@@ -33,6 +33,10 @@ class M68kGenerator(GeneratorBase):
         for m in t.members:
             self.print_equ('%s_%s' % (t.name, m.name), m.value)
 
+    def visit_constant(self, c):
+        self.fh.write('\n; constant\n')
+        self.print_equ(c.name, c.value)
+
     def visit_struct(self, t):
         if t.loc.is_import:
             return 

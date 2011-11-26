@@ -106,6 +106,10 @@ class RawImportStmt(object):
 class RawVoidType(RawType):
     pass
 
+class RawConstant(object):
+    def __init__(self, name, value, loc):
+        self.name, self.value, self.loc = name, value, loc
+
 RawVoidType.instance = RawVoidType(None)
 
 class SourceLocation(object):

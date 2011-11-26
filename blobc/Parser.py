@@ -364,11 +364,22 @@ class Parser(object):
         self.accept(TOK_PUNCT, ';')
         return GeneratorConfig(generator_name, options, loc)
 
+    def r_iconst(self):
+        loc = self.tokenizer.loc()
+        if not self.accept(TOK_WORD, 'iconst'):
+            return None
+        name = self.expect(TOK_WORD)
+        self.expect(TOK_PUNCT, '=')
+        value = self.expect(TOK_INT)
+        self.accept(TOK_PUNCT, ';')
+        return RawConstant(name, value, loc)
+
     def r_toplevel(self):
         return self.alt(
                 self.r_struct,
                 self.r_defprimitive,
                 self.r_enum,
+                self.r_iconst,
                 self.r_import,
                 self.r_generator_config)
 

@@ -234,6 +234,15 @@ class TestParser(unittest.TestCase):
         self.assertIsInstance(m0.type, RawPointerType)
         self.assertTrue(m0.type.is_cstring)
 
+    def test_const(self):
+        p = blobc.parse_string('''
+        iconst a = 7;
+        ''')
+        self.assertEqual(len(p), 1)
+        self.assertIsInstance(p[0], RawConstant)
+        self.assertEqual(p[0].name, "a")
+        self.assertEqual(p[0].value, 7)
+
 class TestTypeSystem(unittest.TestCase):
 
     def __setup(self, src):

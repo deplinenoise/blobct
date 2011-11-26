@@ -3,6 +3,9 @@ defprimitive u16 uint 2;
 defprimitive u32 uint 4;
 defprimitive char character 1;
 
+iconst FooConst = 99;
+iconst BarConst = -1;
+
 import "testdata/other_file"
 
 // Comments working

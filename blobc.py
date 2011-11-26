@@ -2,6 +2,7 @@
 
 import blobc
 import blobc.Typesys
+import blobc.ParseTree
 from blobc.codegen import *
 import sys
 import argparse
@@ -77,6 +78,11 @@ try:
                 gen.visit_enum(t)
             elif isinstance(t, blobc.Typesys.PrimitiveType):
                 gen.visit_primitive(t)
+
+        for item in parse_tree:
+            if not isinstance(item, blobc.ParseTree.RawConstant):
+                continue
+            gen.visit_constant(item)
 
         gen.finish()
     finally:

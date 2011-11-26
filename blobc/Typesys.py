@@ -490,6 +490,8 @@ class TypeSystem(object):
                 raise TypeSystemException(p.loc, "unresolved import statements present")
             elif isinstance(p, GeneratorConfig):
                 continue
+            elif isinstance(p, RawConstant):
+                continue
             else:
                 assert False
 

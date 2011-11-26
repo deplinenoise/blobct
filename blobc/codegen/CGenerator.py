@@ -23,6 +23,7 @@ class CGenerator(GeneratorBase):
         self.__enums = []
         self.__primitives = []
         self.__structs = []
+        self.__constants = []
         self.__weights = {}
         self.__indent = '\t'
         self.__obrace = ' {\n'
@@ -183,6 +184,16 @@ class CGenerator(GeneratorBase):
             else:
                 self.__ctypename[t] = t.name
 
+        if len(self.__constants) > 0:
+            self.__separator('constants')
+            self.fh.write('enum%s' % (self.__obrace))
+            for x in xrange(0, len(self.__constants)):
+                c = self.__constants[x]
+                self.fh.write('%s%s = %d%s\n' % 
+                        (self.__indent, c.name, c.value,
+                         ', ' if (x + 1) < len(self.__constants) else ''))
+            self.fh.write('};\n')
+
         if len(self.__structs) > 0:
             self.__separator('predeclarations')
 
@@ -230,3 +241,5 @@ class CGenerator(GeneratorBase):
                     (t.name, size, t.name, align))
             aux.write('-1];\n')
 
+    def visit_constant(self, c):
+        self.__constants.append(c)

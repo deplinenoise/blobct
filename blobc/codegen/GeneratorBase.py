@@ -39,5 +39,8 @@ class GeneratorBase(object):
     def visit_struct(self, t):
         pass
 
+    def visit_constant(self, c):
+        pass
+
     def finish(self):
         pass
