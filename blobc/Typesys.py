@@ -18,12 +18,18 @@ class TypeSystemException(Exception):
 class BaseType(object):
     def __init__(self):
         self.__ptr_type = None
+        self.__cstr_type = None
         self.__array_types = {}
 
     def pointer_type(self, loc):
         if self.__ptr_type is None:
             self.__ptr_type = PointerType(self, loc)
         return self.__ptr_type
+
+    def cstring_type(self, loc):
+        if self.__cstr_type is None:
+            self.__cstr_type = CStringType(self, loc)
+        return self.__cstr_type
 
     def array_type(self, dim, loc = None):
         r = self.__array_types.get(dim, None)
@@ -42,6 +48,16 @@ class Array(object):
 
     def __str__(self):
         return str(self.items)
+
+class String(Array):
+    def __init__(self, char_type, text):
+        Array.__init__(self, char_type, text + '\0')
+
+    def __repr__(self):
+        return "'%s'" % (self.items[:-1])
+
+    def __str__(self):
+        return self.items[:-1]
 
 class VoidType(BaseType):
     def __str__(self):
@@ -92,7 +108,7 @@ class PointerType(BaseType):
 
         # Or to an individual array element
         elif isinstance(v, tuple):
-            if type(v[0]) is not Array:
+            if not isinstance(v[0], Array):
                 raise TypeSystemException(None, '%s cannot point to %s' % (str(self), str(v)))
 
             if self.__can_point_to(v[0].item_type):
@@ -144,6 +160,16 @@ class PointerType(BaseType):
             self.target_type.serialize(serializer, v)
             serializer.resume()
             serializer.write_ptr(loc)
+
+class CStringType(PointerType):
+    def __init__(self, base, loc):
+        PointerType.__init__(self, base, loc)
+
+    def create_value(self, v):
+        if isinstance(v, str):
+            return String(self.base_type, v)
+        else:
+            return PointerType.create_value(self, v)
 
 class ArrayType(BaseType):
     def __init__(self, base, dim, loc):
@@ -374,6 +400,25 @@ class SignedIntType(IntegerType):
         serializer.align(self.size())
         serializer.write(data)
 
+class CharacterType(PrimitiveType):
+    def __init__(self, name, size, loc):
+        PrimitiveType.__init__(self, name, size, loc)
+        self.__nil = '\0'
+
+    def default_value(self):
+        return self.__nil
+
+    def create_value(self, v):
+        if isinstance(v, str) and len(v) == 1:
+            return v
+        elif v is int:
+            return chr(v)
+        else:
+            raise PythonMappingException('characters must be one-char strings: %s', str(v))
+
+    def serialize(self, serializer, datum):
+        serializer.write(datum)
+
 class UnsignedIntType(IntegerType):
     def __init__(self, name, size, loc):
         fmt = int_format_codes['u%d' % (size)]
@@ -465,6 +510,8 @@ class TypeSystem(object):
             o = SignedIntType(p.name, p.size, p.loc)
         elif 'float' == p.pclass:
             o = FloatingType(p.name, p.size, p.loc)
+        elif 'character' == p.pclass:
+            o = CharacterType(p.name, p.size, p.loc)
         else:
             raise TypeSystemException(p.loc, "%s: unsupported primitive class %s" % (p.name, p.pclass))
 
@@ -501,7 +548,10 @@ class TypeSystem(object):
         if isinstance(t, RawSimpleType):
             return self.__types[t.name]
         elif isinstance(t, RawPointerType):
-            return self.__resolve_type(t.basetype).pointer_type(t.loc)
+            if t.is_cstring:
+                return self.__resolve_type(t.basetype).cstring_type(t.loc)
+            else:
+                return self.__resolve_type(t.basetype).pointer_type(t.loc)
         elif isinstance(t, RawArrayType):
             at = self.__resolve_type(t.basetype)
             for dim in t.dims:

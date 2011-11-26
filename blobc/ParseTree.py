@@ -78,8 +78,9 @@ class RawSimpleType(RawType):
         self.name = name
 
 class RawPointerType(RawType):
-    def __init__(self, basetype, loc):
+    def __init__(self, basetype, loc, is_cstring=False):
         RawType.__init__(self, loc)
+        self.is_cstring = is_cstring
         self.basetype = basetype
 
 class RawArrayType(RawType):

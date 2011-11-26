@@ -3,7 +3,15 @@ import blobc.Typesys
 from . import GeneratorBase
 import md5
 
+
 class CGenerator(GeneratorBase):
+
+    c_reserved_words = '''
+    auto break case char const continue default do double else
+    enum extern float for goto if int long register return short
+    signed sizeof static struct switch typedef union unsigned void
+    volatile while
+    '''.split()
 
     def __init__(self, fh, filename, aux_fh, output_fn):
         GeneratorBase.__init__(self)
@@ -18,6 +26,7 @@ class CGenerator(GeneratorBase):
         self.__weights = {}
         self.__indent = '\t'
         self.__obrace = ' {\n'
+        self.__ctypename = {}
         m = md5.new()
         m.update(self.filename)
         self.guard = 'BLOBC_%s' % (m.hexdigest())
@@ -59,20 +68,30 @@ class CGenerator(GeneratorBase):
     def configure_brace_style(self, style):
         if style == 'k&r':
             self.__obrace = ' {\n'
-        elif style == 'linux':
+        elif style == 'newline':
             self.__obrace = '\n{\n'
         else:
             self.bad_option(o, "unsupported indentation style '%s'" % (style))
 
+    def ctypename(self, t):
+        n = self.__ctypename.get(t)
+        if n is None:
+            if t.name in CGenerator.c_reserved_words:
+                n = "blobc_c_wrap_" + t.name
+            else:
+                n = t.name
+            self.__ctypename[t] = n
+        return n
+
     def vardef(self, t, var):
         if isinstance(t, blobc.Typesys.StructType):
-            return 'struct %s_TAG %s' % (t.name, var)
+            return 'struct %s_TAG %s' % (self.ctypename(t), var)
         elif isinstance(t, blobc.Typesys.ArrayType):
             return '%s[%d]' % (self.vardef(t.base_type, var), t.dim)
         elif isinstance(t, blobc.Typesys.PointerType):
             return '%s*%s' % (self.vardef(t.base_type, ''), var)
         elif isinstance(t, blobc.Typesys.PrimitiveType):
-            return '%s%s' % (t.name, var)
+            return '%s%s' % (self.ctypename(t), var)
         elif t is blobc.Typesys.VoidType.instance:
             return 'void%s' % (var)
         else:
@@ -88,6 +107,14 @@ class CGenerator(GeneratorBase):
             return 'int%d_t' % (t.size() * 8)
         elif type(t) == blobc.Typesys.UnsignedIntType:
             return 'uint%d_t' % (t.size() * 8)
+        elif type(t) == blobc.Typesys.CharacterType:
+            size = t.size()
+            if size == 1:
+                return 'char'
+            elif size == 2:
+                return 'BLOBC_CHAR2_T'
+            elif size == 4:
+                return 'BLOBC_CHAR4_T'
         else:
             assert false
 
@@ -142,7 +169,12 @@ class CGenerator(GeneratorBase):
             self.__separator('primitives')
 
         for t in self.__primitives:
-            self.fh.write('typedef %s %s;\n' % (self.find_prim(t), t.name))
+            prim_name = self.find_prim(t)
+            if prim_name != t.name:
+                self.fh.write('typedef %s %s;\n' % (prim_name, self.ctypename(t)))
+            else:
+                # map e.g. char -> char
+                self.__ctypename[t] = prim_name
 
         if len(self.__structs) > 0:
             self.__separator('predeclarations')

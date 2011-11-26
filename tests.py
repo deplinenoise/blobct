@@ -26,6 +26,10 @@ class TestParser(unittest.TestCase):
         for size in (1, 2, 4, 8):
             self.__testprim("bar", "uint", size)
 
+    def test_character(self):
+        for size in (1, 2, 4):
+            self.__testprim("bar", "character", size)
+
     def test_float(self):
         for size in (4, 8):
             self.__testprim("bar", "float", size)
@@ -34,6 +38,8 @@ class TestParser(unittest.TestCase):
         self.assertRaises(ParseError, self.__testprim, "foo", "sint", 3)
         self.assertRaises(ParseError, self.__testprim, "foo", "uint", 9)
         self.assertRaises(ParseError, self.__testprim, "foo", "float", 1)
+        self.assertRaises(ParseError, self.__testprim, "foo", "character", 8)
+        self.assertRaises(ParseError, self.__testprim, "foo", "sint", -1)
 
     def test_empty_struct(self):
         p = blobc.parse_string("struct foo {}")
@@ -217,6 +223,17 @@ class TestParser(unittest.TestCase):
         self.assertTrue(options[0].has_kw_param("a"))
         self.assertEqual(options[0].kw_param("a"), "another string")
 
+    def test_cstring(self):
+        p = blobc.parse_string('''struct foo {
+                __cstring<char> a;
+        }''')
+        self.assertEqual(len(p), 1)
+        self.assertEqual(p[0].name, "foo")
+        self.assertEqual(len(p[0].members), 1)
+        m0 = p[0].members[0]
+        self.assertIsInstance(m0.type, RawPointerType)
+        self.assertTrue(m0.type.is_cstring)
+
 class TestTypeSystem(unittest.TestCase):
 
     def __setup(self, src):
@@ -318,6 +335,16 @@ class TestTypeSystem(unittest.TestCase):
         self.assertIsInstance(ta.members[1].mtype, blobc.Typesys.PointerType)
         self.assertIsInstance(ta.members[1].mtype.base_type, blobc.Typesys.PointerType)
         self.assertIs(ta.members[1].mtype.base_type.base_type, blobc.Typesys.VoidType.instance)
+
+    def test_cstring(self):
+        tsys = self.__setup('''
+        defprimitive char character 1;
+        struct foo {
+                __cstring<char> a;
+        }''')
+        foo = tsys.lookup('foo')
+        self.assertIsInstance(foo.members[0].mtype, blobc.Typesys.CStringType)
+        self.assertIsInstance(foo.members[0].mtype.base_type, blobc.Typesys.CharacterType)
 
 class TestClassGen(unittest.TestCase):
     def __setup(self, src):
@@ -602,6 +629,34 @@ class TestSerializer(unittest.TestCase):
         blob, relocs = blobc.layout(data, tm)
         self.assertEqual(blob, pack('>IIII', 12, 1, 2, 3))
         self.assertEqual(relocs, pack('>I', 0))
+
+    def test_cstring(self):
+        c = self.__setup("""
+            defprimitive char8 character 1;
+            struct foo {
+                __cstring<char8> a;
+            }
+        """)
+        data = c['foo'](a="text string");
+        tm = blobc.TargetMachine(endian='big', pointer_size=4)
+        blob, relocs = blobc.layout(data, tm)
+        self.assertEqual(blob, pack('>I', 4) + "text string\0")
+        self.assertEqual(relocs, pack('>I', 0))
+
+    def test_ptr_inside_cstring(self):
+        c = self.__setup("""
+            defprimitive char8 character 1;
+            struct foo {
+                __cstring<char8> a;
+                char8* substr;
+            }
+        """)
+        f = c['foo'](a="this is a value");
+        f.substr = (f.a, 4)
+        tm = blobc.TargetMachine(endian='big', pointer_size=4)
+        blob, relocs = blobc.layout(f, tm)
+        self.assertEqual(blob, pack('>II', 8, 12) + "this is a value\0")
+        self.assertEqual(relocs, pack('>II', 0, 4))
 
 if __name__ == '__main__':
     unittest.main()

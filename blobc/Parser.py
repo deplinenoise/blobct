@@ -7,7 +7,7 @@ SCANNER = re.compile(r'''
   (\s+)                             | # whitespace
   (//)[^\n]*                        | # comments
   ([+-]?\d+)                        | # integer literals
-  ([][(){}=,;:*])                   | # punctuation
+  ([][(){}<>=,;:*])                 | # punctuation
   ([A-Za-z_][A-Za-z0-9_]*)          | # identifiers
   "((?:[^"\n\\]|\\.)*)"             | # string literal
   (.)                                 # an error!
@@ -196,15 +196,19 @@ class Parser(object):
         name = self.expect(TOK_WORD)
         if name == 'void':
             t = RawVoidType.instance
+        elif name == '__cstring':
+            self.expect(TOK_PUNCT, '<')
+            char_type = self.r_type()
+            self.expect(TOK_PUNCT, '>')
+            t = RawPointerType(char_type, loc, is_cstring=True)
         else:
             t = RawSimpleType(name, loc)
 
         while True:
+            loc = self.tokenizer.loc()
             if self.accept(TOK_PUNCT, '*'):
-                loc = self.tokenizer.loc()
                 t = RawPointerType(t, loc)
             elif self.accept(TOK_PUNCT, '['):
-                loc = self.tokenizer.loc()
                 dims = self.sep_nonempy_list(self.r_arraydim, ',')
                 t = RawArrayType(t, dims, loc)
                 self.expect(TOK_PUNCT, ']')
@@ -297,6 +301,9 @@ class Parser(object):
         if pclass in ('sint', 'uint'):
             if size not in (1, 2, 4, 8):
                 self.error('unsupported integer size %d; 1, 2, 4 and 8 supported' % (size))
+        elif pclass == 'character':
+            if size not in (1, 2, 4):
+                self.error('unsupported character size %d; 1, 2 and 4 supported' % (size))
         elif pclass == "float":
             if size not in (4, 8):
                 self.error('unsupported floating-point primitive size %d; 4 and 8 supported' % (size))
