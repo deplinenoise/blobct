@@ -1,5 +1,17 @@
-class RawDefPrimitive(object):
-    def __init__(self, name, pclass, size, loc):
+
+class OptionContainer(object):
+    def __init__(self, options):
+        self.__options = options
+
+    def get_options(self, tag):
+        if self.__options:
+            return [o for o in self.__options if o.name == tag]
+        else:
+            return []
+
+class RawDefPrimitive(OptionContainer):
+    def __init__(self, name, pclass, size, options, loc):
+        OptionContainer.__init__(self, options)
         self.name = name
         self.pclass = pclass
         self.size = size
@@ -50,16 +62,6 @@ class RawEnumType(object):
 class RawEnumMember(object):
     def __init__(self, name, value, loc):
         self.name, self.value, self.loc = name, value, loc
-
-class OptionContainer(object):
-    def __init__(self, options):
-        self.__options = options
-
-    def get_options(self, tag):
-        if self.__options:
-            return [o for o in self.__options if o.name == tag]
-        else:
-            return []
 
 class RawStructType(OptionContainer):
     def __init__(self, name, members, options, loc):

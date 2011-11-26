@@ -26,6 +26,7 @@ class CGenerator(GeneratorBase):
         self.__weights = {}
         self.__indent = '\t'
         self.__obrace = ' {\n'
+        self.__struct_suffix = '_TAG'
         self.__ctypename = {}
         m = md5.new()
         m.update(self.filename)
@@ -43,8 +44,8 @@ class CGenerator(GeneratorBase):
                     t = blobc.TargetMachine(pointer_size = ptr_size, pointer_align = ptr_align)
                     self.__tms.append(t)
                     
-            if output_fn:
-                self.aux_fh.write('#include "%s"\n\n' % (output_fn))
+            if self.output_fn is not None:
+                self.aux_fh.write('#include "%s"\n\n' % (self.output_fn))
 
             self.aux_fh.write('#ifndef ALIGNOF\n')
             self.aux_fh.write('#if defined(__GNUC__) || defined(_MSC_VER)\n')
@@ -55,6 +56,9 @@ class CGenerator(GeneratorBase):
             self.aux_fh.write('#error please define ALIGNOF for your compiler\n')
             self.aux_fh.write('#endif\n')
             self.aux_fh.write('#endif\n\n')
+
+    def configure_struct_suffix(self, suffix):
+        self.__struct_suffix = suffix
 
     def configure_indent_style(self, style, size=4):
         if style == 'spaces':
@@ -85,7 +89,7 @@ class CGenerator(GeneratorBase):
 
     def vardef(self, t, var):
         if isinstance(t, blobc.Typesys.StructType):
-            return 'struct %s_TAG %s' % (self.ctypename(t), var)
+            return 'struct %s%s %s' % (self.ctypename(t), self.__struct_suffix, var)
         elif isinstance(t, blobc.Typesys.ArrayType):
             return '%s[%d]' % (self.vardef(t.base_type, var), t.dim)
         elif isinstance(t, blobc.Typesys.PointerType):
@@ -169,18 +173,21 @@ class CGenerator(GeneratorBase):
             self.__separator('primitives')
 
         for t in self.__primitives:
-            prim_name = self.find_prim(t)
-            if prim_name != t.name:
-                self.fh.write('typedef %s %s;\n' % (prim_name, self.ctypename(t)))
+            if not t.is_external():
+                prim_name = self.find_prim(t)
+                if prim_name != t.name:
+                    self.fh.write('typedef %s %s;\n' % (prim_name, self.ctypename(t)))
+                else:
+                    # map e.g. char -> char
+                    self.__ctypename[t] = prim_name
             else:
-                # map e.g. char -> char
-                self.__ctypename[t] = prim_name
+                self.__ctypename[t] = t.name
 
         if len(self.__structs) > 0:
             self.__separator('predeclarations')
 
         for t in self.__structs:
-            self.fh.write('struct %s_TAG;\n' % (t.name))
+            self.fh.write('struct %s%s;\n' % (t.name, self.__struct_suffix))
 
         if len(self.__enums) > 0:
             self.__separator('enums')
@@ -200,7 +207,7 @@ class CGenerator(GeneratorBase):
             self.__separator('structs')
 
         for t in self.__structs:
-            self.fh.write('\ntypedef struct %s_TAG%s' % (t.name, self.__obrace))
+            self.fh.write('\ntypedef struct %s%s%s' % (t.name, self.__struct_suffix, self.__obrace))
             for m in t.members:
                 self.fh.write(self.__indent)
                 self.fh.write(self.vardef(m.mtype, ' ' + m.mname))

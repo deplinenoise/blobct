@@ -345,6 +345,13 @@ class PrimitiveType(BaseType):
         self.name = name
         self.loc = loc
         self.__size = size
+        self.__is_external = False
+
+    def is_external(self):
+        return self.__is_external
+
+    def set_is_external(self, state):
+        self.__is_external = state
 
     def size(self):
         return self.__size
@@ -503,7 +510,9 @@ class TypeSystem(object):
     def __add_primitive(self, p):
         if self.__types.has_key(p.name):
             raise TypeSystemException(p.loc, "duplicate type name %s" % (p.name))
+
         o = None
+
         if 'uint' == p.pclass:
             o = UnsignedIntType(p.name, p.size, p.loc)
         elif 'sint' == p.pclass:
@@ -514,6 +523,9 @@ class TypeSystem(object):
             o = CharacterType(p.name, p.size, p.loc)
         else:
             raise TypeSystemException(p.loc, "%s: unsupported primitive class %s" % (p.name, p.pclass))
+
+        opts = p.get_options('external')
+        o.set_is_external(len(opts) > 0)
 
         self.__types[p.name] = o
 

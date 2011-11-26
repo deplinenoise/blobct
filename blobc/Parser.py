@@ -80,7 +80,7 @@ class Tokenizer(object):
 
     def describe_here(self):
         t, v = self.peek()
-        return describe(t, v)
+        return self.describe(t, v)
 
     def describe(self, t, v):
         if t == TOK_EOF:
@@ -297,6 +297,11 @@ class Parser(object):
         pclass = self.expect(TOK_WORD)
         size = self.expect(TOK_INT)
 
+        if self.accept(TOK_PUNCT, ':'):
+            options = self.sep_nonempy_list(self.r_named_option, ',')
+        else:
+            options = []
+
         # sanity check the data
         if pclass in ('sint', 'uint'):
             if size not in (1, 2, 4, 8):
@@ -312,7 +317,7 @@ class Parser(object):
 
         self.accept(TOK_PUNCT, ';')
 
-        return RawDefPrimitive(name, pclass, size, loc)
+        return RawDefPrimitive(name, pclass, size, options, loc)
 
     def r_enum_member(self):
         if self.tokenizer.peek()[0] != TOK_WORD:
@@ -379,9 +384,6 @@ def parse_string(data):
     return doparse('<string>', data)
 
 def parse_file(fn, handle_imports=False, import_dirs=('.'), import_memo={}, depth=0):
-    if depth > 0:
-        print "importing", fn
-
     with open(fn, 'r') as f:
         data = f.read()
 
