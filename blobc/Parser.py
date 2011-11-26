@@ -193,7 +193,11 @@ class Parser(object):
 
     def r_type(self):
         loc = self.tokenizer.loc()
-        t = RawSimpleType(self.expect(TOK_WORD), loc)
+        name = self.expect(TOK_WORD)
+        if name == 'void':
+            t = RawVoidType.instance
+        else:
+            t = RawSimpleType(name, loc)
 
         while True:
             if self.accept(TOK_PUNCT, '*'):
@@ -206,7 +210,9 @@ class Parser(object):
                 self.expect(TOK_PUNCT, ']')
             else:
                 break
-            
+
+        if t is RawVoidType.instance:
+            self.error("void type is not instantiatable")
         return t
 
     def r_member(self):

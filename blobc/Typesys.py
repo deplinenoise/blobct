@@ -11,13 +11,9 @@ class PythonMappingException(Exception):
 class TypeSystemException(Exception):
     def __init__(self, loc, msg):
         if loc is not None:
-            Exception.__init__(self, "%s(%d): %s" % (loc[0], loc[1], msg))
+            Exception.__init__(self, "%s(%d): %s" % (loc.filename, loc.lineno, msg))
         else:
             Exception.__init__(self, msg)
-
-class TypeCheckException(Exception):
-    def __init__(self, msg):
-        Exception.__init__(self, msg)
 
 class BaseType(object):
     def __init__(self):
@@ -47,6 +43,24 @@ class Array(object):
     def __str__(self):
         return str(self.items)
 
+class VoidType(BaseType):
+    def __str__(self):
+        return '<any>'
+
+    def compute_size(self, targmach):
+        raise TypeSystemException(None, 'void type cannot be instantiated')
+
+    def default_value(self):
+        raise TypeSystemException(None, 'void type cannot be instantiated')
+
+    def create_value(self, v):
+        raise TypeSystemException(None, 'void type cannot be instantiated')
+
+    def serialize(self, serializer, v):
+        raise TypeSystemException(None, 'void type cannot be instantiated')
+
+VoidType.instance = VoidType()
+
 class PointerType(BaseType):
     def __init__(self, base, loc):
         BaseType.__init__(self)
@@ -59,6 +73,11 @@ class PointerType(BaseType):
 
     def default_value(self):
         return None
+
+    def __can_point_to(self, target_type):
+        return target_type is self.base_type or \
+                self.base_type is VoidType.instance or \
+                (isinstance(self.base_type, StructType) and target_type.is_superset_of(self.base_type))
 
     def create_value(self, v):
         # pointers allow flexible data
@@ -73,18 +92,20 @@ class PointerType(BaseType):
 
         # Or to an individual array element
         elif isinstance(v, tuple):
-            if type(v[0]) is Array and v[0].item_type is self.base_type:
+            if type(v[0]) is not Array:
+                raise TypeSystemException(None, '%s cannot point to %s' % (str(self), str(v)))
+
+            if self.__can_point_to(v[0].item_type):
                 return v
             else:
-                raise TypeCheckException('%s cannot point to %s' % (str(self), str(v)))
+                raise TypeSystemException(None, '%s cannot point to %s' % (str(self), str(v)))
 
         # Or to an individual value, currently must be struct
         else:
-            tv = type(v)
-            if tv.srctype is self.base_type:
+            if self.__can_point_to(type(v).srctype):
                 return (v, 0)
             else:
-                raise TypeCheckException('%s cannot point to %s', str(self), str(v))
+                raise TypeSystemException(None, '%s cannot point to %s' % (str(self), str(v)))
 
     def __repr__(self):
         return self.__str
@@ -101,24 +122,28 @@ class PointerType(BaseType):
 
         if isinstance(v, Array):
             loc = serializer.divert()
-            self.base_type.array_type(len(v.items)).serialize(serializer, v)
+            if len(v.items) > 0:
+                v.item_type.array_type(len(v.items)).serialize(serializer, v)
             serializer.resume()
             serializer.write_ptr(loc)
 
         elif isinstance(v, tuple):
-            targ_array = v[0]
+            target = v[0]
             index = v[1]
-            loc = serializer.location_of(targ_array)
-            item_size = serializer.targmach().sizeof(self.base_type)
-            serializer.write_ptr(loc, index * item_size)
+            loc = serializer.location_of(target)
+            if isinstance(target, Array):
+                index *= serializer.targmach().sizeof(target.item_type)
+            elif index != 0:
+                raise TypeSystemException(None, 'offset pointer requires array target')
+
+            serializer.write_ptr(loc, index)
 
         else:
             loc = serializer.divert()
-            self.base_type.serialize(serializer, v)
+            target_type = type(v).target_type
+            self.target_type.serialize(serializer, v)
             serializer.resume()
             serializer.write_ptr(loc)
-
-
 
 class ArrayType(BaseType):
     def __init__(self, base, dim, loc):
@@ -194,8 +219,34 @@ class StructType(BaseType):
         self.loc = loc
         self.members = []
         self.memhash = {}
+        self.__base = None # struct type included in this type
         self.__classobj = None
         self.__str = 'struct ' + name
+
+    def set_base_struct(self, t):
+        if self.__base is not None:
+            raise TypeSystemException(None, '%s already has a base' % (self.name))
+        self.__base = t
+
+    def base_type(self):
+        return self.__base
+
+    def is_superset_of(self, other):
+        if self is other:
+            return True
+
+        if not isinstance(other, StructType):
+            return False
+        
+        # Check if the other type is a base of this type, recursively.
+        t = self
+        base = t.base_type()
+        while base is not None:
+            if base is other:
+                return True
+            base = base.base_type()
+
+        return False
 
     def set_class_object(self, cls):
         self.__classobj = cls
@@ -241,7 +292,7 @@ class StructType(BaseType):
 
     def create_value(self, v):
         if type(v) != self.__classobj:
-            raise TypeCheckException('%s cannot be assigned to %s' % (type(v), self.name))
+            raise TypeSystemException(None, '%s cannot be assigned to %s' % (type(v), self.name))
         return v
 
     def serialize(self, serializer, datum):
@@ -293,7 +344,7 @@ class IntegerType(PrimitiveType):
     def create_value(self, v):
         v = int(v)
         if v < self.__min or v > self.__max:
-            raise TypeCheckException('value %d is out of range for datatype %s (min: %d, max: %d)' %
+            raise TypeSystemException(None, 'value %d is out of range for datatype %s (min: %d, max: %d)' %
                     (v, self.name, self.__min, self.__max))
         return v
 
@@ -369,6 +420,7 @@ class TypeSystem(object):
         self.__structs = []
         self.__enums = []
         self.__raw_types = {}
+        self.__bases_applies = {}
 
         for p in raw_data:
             if isinstance(p, RawStructType):
@@ -455,27 +507,48 @@ class TypeSystem(object):
             for dim in t.dims:
                 at = at.array_type(dim, t.loc)
             return at
+        elif t is RawVoidType.instance:
+            return VoidType.instance
+        else:
+            assert False
 
-    def __add_struct_members(self, p):
-        struct = self.__types[p.name]
+    def __apply_struct_base(self, target, srcelem, depth=0):
+        first = True
+        loc = srcelem.loc
+        for opt in srcelem.get_options('base'):
+            # Check that base is only given once.
+            if not first:
+                raise TypeSystemException(loc, "'base' can only be specified once")
+            first = False
 
-        # add all base structs in defined order
-        for opt in p.get_options('base'):
             if opt.pos_param_count() != 1:
-                raise TypeSystemException(p.loc,
+                raise TypeSystemException(loc,
                         "'base' option must have a single "\
                         "positional parameter, the base struct")
 
             base_name = opt.pos_param(0)
-            base_type = self.__raw_types.get(base_name)
-            if base_type is None:
-                raise TypeSystemException(p.loc, "'base' struct %s is undefined" % (base_name))
+            raw_base = self.__raw_types.get(base_name)
+            if raw_base is None:
+                raise TypeSystemException(loc, "'base' struct %s is undefined" % (base_name))
 
-            for mem in base_type.members:
+            if 0 == depth:
+                target.set_base_struct(self.__types[base_name])
+
+            # apply bases recursively
+            self.__apply_struct_base(target, raw_base, depth+1)
+
+            # add all inherited members
+            for mem in raw_base.members:
                 t = self.__resolve_type(mem.type)
-                struct.add_member(StructMember(mem.name, t, mem.loc))
+                target.add_member(StructMember(mem.name, t, mem.loc))
 
-        # add all vanilla members
+    def __add_struct_members(self, p):
+        struct = self.__types[p.name]
+
+        # make sure all base structs are in place
+        self.__apply_struct_base(struct, p)
+
+        # add all regular members
         for mem in p.members:
             t = self.__resolve_type(mem.type)
             struct.add_member(StructMember(mem.name, t, mem.loc))

@@ -96,6 +96,11 @@ class RawImportStmt(object):
         self.filename = filename
         self.loc = loc
 
+class RawVoidType(RawType):
+    pass
+
+RawVoidType.instance = RawVoidType(None)
+
 class SourceLocation(object):
     def __init__(self, filename, lineno, is_import):
         self.filename, self.lineno, self.is_import = filename, lineno, is_import

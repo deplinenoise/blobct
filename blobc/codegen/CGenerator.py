@@ -73,6 +73,8 @@ class CGenerator(GeneratorBase):
             return '%s*%s' % (self.vardef(t.base_type, ''), var)
         elif isinstance(t, blobc.Typesys.PrimitiveType):
             return '%s%s' % (t.name, var)
+        elif t is blobc.Typesys.VoidType.instance:
+            return 'void%s' % (var)
         else:
             assert False
 

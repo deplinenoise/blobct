@@ -6,6 +6,7 @@ import blobc
 from struct import pack
 from blobc.ParseTree import *
 from blobc.Parser import ParseError
+from blobc.Typesys import TypeSystemException
 
 class TestParser(unittest.TestCase):
 
@@ -146,7 +147,7 @@ class TestParser(unittest.TestCase):
                 struct foo :
                     a("foo", bar=89, baz=tjoho),
                     qux,
-                    slap(visst="serru")
+                    qux(visst="serru")
                 { }''')
         foo = p[0]
         self.assertEqual(len(foo.options), 3)
@@ -159,7 +160,7 @@ class TestParser(unittest.TestCase):
         self.assertEqual(foo.options[1].name, "qux")
         self.assertEqual(foo.options[1].pos_param_count(), 0)
 
-        self.assertEqual(foo.options[2].name, "slap")
+        self.assertEqual(foo.options[2].name, "qux")
         self.assertEqual(foo.options[2].pos_param_count(), 0)
         self.assertEqual(foo.options[2].kw_param("visst"), "serru")
 
@@ -177,6 +178,20 @@ class TestParser(unittest.TestCase):
         self.assertEqual(len(p), 2)
         self.assertIsInstance(p[0], blobc.ParseTree.GeneratorConfig)
         self.assertIsInstance(p[1], blobc.ParseTree.GeneratorConfig)
+
+    def test_void_parse_error(self):
+        # Make sure void cannot be used standalone.
+        with self.assertRaises(blobc.ParseError):
+            p = blobc.parse_string('''struct foo { void foo; }''')
+
+    def test_void_star(self):
+        p = blobc.parse_string('''struct foo { void *foo; }''')
+        self.assertEqual(len(p), 1)
+        self.assertEqual(p[0].name, "foo")
+        self.assertEqual(len(p[0].members), 1)
+        m0 = p[0].members[0]
+        self.assertIsInstance(m0.type, RawPointerType)
+        self.assertIsInstance(m0.type.basetype, RawVoidType)
 
 class TestTypeSystem(unittest.TestCase):
 
@@ -217,6 +232,35 @@ class TestTypeSystem(unittest.TestCase):
         self.assertEqual(ta.members[1].mname, 'b')
         self.assertIs(ta.members[0].mtype, ta.members[1].mtype)
 
+    def test_struct_base(self):
+        tsys = self.__setup("""
+            defprimitive u32 uint 4;
+            struct foo_base {
+                u32 a;
+            }
+            struct foo : base(foo_base) {
+                u32 b;
+            }
+        """)
+        ta = tsys.lookup('foo')
+        self.assertIsInstance(ta, blobc.Typesys.StructType)
+        self.assertEqual(len(ta.members), 2)
+        self.assertEqual(ta.members[0].mname, 'a')
+        self.assertEqual(ta.members[1].mname, 'b')
+        self.assertIs(ta.members[0].mtype, ta.members[1].mtype)
+
+    def test_struct_base_error(self):
+        with self.assertRaises(TypeSystemException):
+            self.__setup("""
+                defprimitive u32 uint 4;
+                struct foo_base {
+                    u32 a;
+                }
+                struct foo : base(foo_base), base(foo_base) {
+                    u32 b;
+                }
+            """)
+
     def test_enum(self):
         tsys = self.__setup("""
             enum foo {
@@ -234,6 +278,22 @@ class TestTypeSystem(unittest.TestCase):
         self.assertEqual(ta.members[0].value, 0)
         self.assertEqual(ta.members[1].value, 8)
         self.assertEqual(ta.members[2].value, 9)
+
+    def test_enum(self):
+        tsys = self.__setup("""
+            struct foo {
+                void *a;
+                void **b;
+            }
+        """)
+        ta = tsys.lookup('foo')
+        self.assertEqual(ta.members[0].mname, 'a')
+        self.assertEqual(ta.members[1].mname, 'b')
+        self.assertIsInstance(ta.members[0].mtype, blobc.Typesys.PointerType)
+        self.assertIs(ta.members[0].mtype.base_type, blobc.Typesys.VoidType.instance)
+        self.assertIsInstance(ta.members[1].mtype, blobc.Typesys.PointerType)
+        self.assertIsInstance(ta.members[1].mtype.base_type, blobc.Typesys.PointerType)
+        self.assertIs(ta.members[1].mtype.base_type.base_type, blobc.Typesys.VoidType.instance)
 
 class TestClassGen(unittest.TestCase):
     def __setup(self, src):
@@ -278,6 +338,58 @@ class TestClassGen(unittest.TestCase):
         self.assertEqual(cls.BAR.value(), 7)
         self.assertEqual(cls.BAZ.value(), 8)
         self.assertEqual(cls.FROB.value(), 9)
+
+    def test_struct_base_ptr(self):
+        c = self.__setup("""
+            defprimitive u32 uint 4;
+            struct foo_base {
+                u32 a;
+            }
+            struct foo : base(foo_base) {
+                u32 b;
+            }
+            struct bar {
+                foo_base *test;
+            }
+        """)
+        foo, bar = c['foo'], c['bar']
+        data = bar(test=foo(a=1, b=2))
+
+    def test_struct_base_ptr_recursively(self):
+        c = self.__setup("""
+            defprimitive u32 uint 4;
+            struct foo_base1 {
+                u32 a;
+            }
+            struct foo_base2 : base(foo_base1) {
+                u32 b;
+            }
+            struct foo : base(foo_base2) {
+                u32 c;
+            }
+            struct bar {
+                foo_base1 *test;
+            }
+        """)
+        foo, bar = c['foo'], c['bar']
+        data = bar(test=foo(a=1, b=2, c=3))
+
+    def test_struct_base_ptr_error(self):
+        c = self.__setup("""
+            defprimitive u32 uint 4;
+            struct foo_base {
+                u32 a;
+            }
+            struct foo : base(foo_base) {
+                u32 b;
+            }
+            struct bar {
+                foo *test;
+            }
+        """)
+        foo_base, bar = c['foo_base'], c['bar']
+        with self.assertRaises(TypeSystemException):
+            data = bar(test=foo_base(a=1))
 
 class TestSerializer(unittest.TestCase):
 
@@ -418,6 +530,53 @@ class TestSerializer(unittest.TestCase):
         tm = blobc.TargetMachine(endian='big', pointer_size=4)
         blob, relocs = blobc.layout(data, tm)
         self.assertEqual(blob, pack('>IIII', 4, 3, 11, 77))
+        self.assertEqual(relocs, pack('>I', 0))
+
+    def test_void_ptr_null(self):
+        c = self.__setup("""
+            defprimitive ulong uint 4;
+            struct bar {
+                void* ptr;
+            }
+        """)
+        data = c['bar'](ptr=None)
+        tm = blobc.TargetMachine(endian='big', pointer_size=4)
+        blob, relocs = blobc.layout(data, tm)
+        self.assertEqual(blob, pack('>I', 0))
+        self.assertEqual(relocs, '')
+
+    def test_void_ptr_instance(self):
+        c = self.__setup("""
+            defprimitive ulong uint 4;
+            struct foo {
+                ulong a;
+            }
+            struct bar {
+                void* ptr;
+            }
+        """)
+        f = c['foo'](a=42);
+        data = c['bar'](ptr=f)
+        tm = blobc.TargetMachine(endian='big', pointer_size=4)
+        blob, relocs = blobc.layout(data, tm)
+        self.assertEqual(blob, pack('>II', 4, 42))
+        self.assertEqual(relocs, pack('>I', 0))
+
+    def test_void_ptr_array(self):
+        c = self.__setup("""
+            defprimitive ulong uint 4;
+            struct foo {
+                ulong[3] a;
+            }
+            struct bar {
+                void* ptr;
+            }
+        """)
+        f = c['foo'](a=[1, 2, 3]);
+        data = c['bar'](ptr=(f.a, 2))
+        tm = blobc.TargetMachine(endian='big', pointer_size=4)
+        blob, relocs = blobc.layout(data, tm)
+        self.assertEqual(blob, pack('>IIII', 12, 1, 2, 3))
         self.assertEqual(relocs, pack('>I', 0))
 
 if __name__ == '__main__':
