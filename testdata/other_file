@@ -5,7 +5,7 @@ generator m68k : include_suffix(".inc");
 defprimitive s8 sint 1;
 defprimitive s16 sint 2;
 defprimitive s32 sint 4;
-defprimitive f32 float 4;
+defprimitive float float 4;
 
 enum fiskrens {
     A,
