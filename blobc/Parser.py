@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import re
+import os.path
 from ParseTree import *
 
 SCANNER = re.compile(r'''
@@ -399,6 +400,12 @@ def doparse(fn, data, is_import=False):
 def parse_string(data):
     return doparse('<string>', data)
 
+def find_imported_file(fn, dirs):
+    for d in dirs:
+        fpath = os.path.normpath(os.path.join(d, fn))
+        if os.path.exists(fpath):
+            return fpath
+
 def parse_file(fn, handle_imports=False, import_dirs=('.'), import_memo={}, depth=0):
     with open(fn, 'r') as f:
         data = f.read()
@@ -409,10 +416,14 @@ def parse_file(fn, handle_imports=False, import_dirs=('.'), import_memo={}, dept
         iresult = []
         for r in result:
             if isinstance(r, RawImportStmt):
-                if not import_memo.has_key(r.filename):
+                imported_fn = find_imported_file(r.filename, import_dirs)
+                if not imported_fn:
+                    raise ParseError(r.loc.filename, r.loc.lineno, "couldn't find '%s' in any of %s'" %
+                            (r.filename, ', '.join(import_dirs)))
+                if not import_memo.has_key(imported_fn):
                     # todo: should make an effort of using real absolute names here
-                    import_memo[r.filename] = True
-                    iresult.extend(parse_file(r.filename, True, import_dirs, import_memo, depth+1))
+                    import_memo[imported_fn] = True
+                    iresult.extend(parse_file(imported_fn, True, import_dirs, import_memo, depth+1))
             else:
                 iresult.append(r)
         return iresult
