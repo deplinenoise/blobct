@@ -6,6 +6,8 @@ class M68kGenerator(GeneratorBase):
         self.__filename = filename
         self.__targmach = blobc.TargetMachine(pointer_size=4, endian='big')
         self.__include_suffix = '.i'
+        self.__sizeof_suffix = '_SIZE'
+        self.__alignof_suffix = '_ALIGN'
         self.__user_literals = []
         self.fh = fh
 
@@ -14,6 +16,12 @@ class M68kGenerator(GeneratorBase):
 
     def configure_emit(self, *text):
         self.__user_literals.extend(text)
+
+    def configure_sizeof_suffix(self, suffix):
+        self.__sizeof_suffix = str(suffix)
+
+    def configure_alignof_suffix(self, suffix):
+        self.__alignof_suffix = str(suffix)
 
     def start(self):
         self.fh.write('; Generated automatically by blobc.py from %s; do not edit.\n\n' %
@@ -54,7 +62,12 @@ class M68kGenerator(GeneratorBase):
         sz, align = self.__targmach.size_align(t)
         self.fh.write('\n; struct: %s (size: %d, align: %d)\n' % (t.name, sz, align))
         for m in t.members:
-            self.print_equ(t.name + '_' + m.mname, m.offset)
-        self.print_equ(t.name + '_SIZE', sz)
-        self.print_equ(t.name + '_ALIGN', align)
+            name_opt = m.get_options('m68k_name')
+            if len(name_opt) > 0:
+                name = str(name_opt[0].pos_param(0))
+            else:
+                name = t.name + '_' + m.mname
+            self.print_equ(name, m.offset)
+        self.print_equ(t.name + self.__sizeof_suffix, sz)
+        self.print_equ(t.name + self.__alignof_suffix, align)
 
