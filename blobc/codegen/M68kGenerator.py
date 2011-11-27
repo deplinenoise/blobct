@@ -6,14 +6,25 @@ class M68kGenerator(GeneratorBase):
         self.__filename = filename
         self.__targmach = blobc.TargetMachine(pointer_size=4, endian='big')
         self.__include_suffix = '.i'
+        self.__user_literals = []
         self.fh = fh
 
     def configure_include_suffix(self, value):
         self.__include_suffix = str(value)
 
+    def configure_emit(self, *text):
+        self.__user_literals.extend(text)
+
     def start(self):
         self.fh.write('; Generated automatically by blobc.py from %s; do not edit.\n\n' %
                 (self.__filename))
+
+        if len(self.__user_literals) > 0:
+            self.fh.write('\n; User literals (from "emit")\n')
+            for l in self.__user_literals:
+                self.fh.write(l)
+                self.fh.write('\n')
+            self.fh.write('\n\n')
 
     def print_equ(self, label, value):
         self.fh.write(label)
