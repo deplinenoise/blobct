@@ -9,7 +9,8 @@ SCANNER = re.compile(r'''
   ([+-]?\d+)                        | # integer literals
   ([][(){}<>=,;:*])                 | # punctuation
   ([A-Za-z_][A-Za-z0-9_]*)          | # identifiers
-  "((?:[^"\n\\]|\\.)*)"             | # string literal
+  """(.*?)"""                       | # multi-line string literal
+  "((?:[^"\n\\]|\\.)*)"             | # regular string literal
   (.)                                 # an error!
   ''', re.DOTALL | re.VERBOSE);
 
@@ -55,17 +56,20 @@ class Tokenizer(object):
             except StopIteration:
                 return TOK_EOF, None
 
-            space, comment, integer, punct, word, stringlit, badchar = m.groups()
+            space, comment, integer, punct, word, mstringlit, stringlit, badchar = m.groups()
 
             if space is not None:
                 self.lineno += space.count('\n')
                 continue
 
-            if comment is not None:
-                continue
+            if word is not None:
+                return TOK_WORD, word
 
             if integer is not None:
                 return TOK_INT, int(integer)
+
+            if comment is not None:
+                continue
 
             if punct is not None:
                 return TOK_PUNCT, punct
@@ -73,8 +77,9 @@ class Tokenizer(object):
             if stringlit is not None:
                 return TOK_STRING, stringlit
 
-            if word is not None:
-                return TOK_WORD, word
+            if mstringlit is not None:
+                self.lineno += mstringlit.count('\n')
+                return TOK_STRING, mstringlit
 
             raise ParseError(self.filename, self.lineno, 'bad token char: "%s"' % (badchar))
 
