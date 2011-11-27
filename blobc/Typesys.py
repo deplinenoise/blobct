@@ -231,11 +231,15 @@ class EnumType(BaseType):
         serializer.write(struct.pack(fmt, v.value()))
 
 class StructMember(object):
-    def __init__(self, mname, mtype, loc):
-        self.mname = mname
+    def __init__(self, raw_member, mtype):
         self.mtype = mtype
-        self.loc = loc
+        self.parse_node = raw_member
+        self.mname = raw_member.name
+        self.loc = raw_member.loc
         self.offset = -1 
+
+    def get_options(self, name):
+        return self.parse_node.get_options(name)
 
 class StructType(BaseType):
     def __init__(self, name, loc):
@@ -604,7 +608,7 @@ class TypeSystem(object):
             # add all inherited members
             for mem in raw_base.members:
                 t = self.__resolve_type(mem.type)
-                target.add_member(StructMember(mem.name, t, mem.loc))
+                target.add_member(StructMember(mem, t))
 
     def __add_struct_members(self, p):
         struct = self.__types[p.name]
@@ -615,7 +619,7 @@ class TypeSystem(object):
         # add all regular members
         for mem in p.members:
             t = self.__resolve_type(mem.type)
-            struct.add_member(StructMember(mem.name, t, mem.loc))
+            struct.add_member(StructMember(mem, t))
 
     def __check_struct(self, s):
         self.__tstack.append(s)

@@ -20,6 +20,7 @@ class CGenerator(GeneratorBase):
         self.fh = fh
         self.aux_fh = aux_fh
         self.__imports = []
+        self.__user_literals = []
         self.__enums = []
         self.__primitives = []
         self.__structs = []
@@ -57,6 +58,9 @@ class CGenerator(GeneratorBase):
             self.aux_fh.write('#error please define ALIGNOF for your compiler\n')
             self.aux_fh.write('#endif\n')
             self.aux_fh.write('#endif\n\n')
+
+    def configure_emit(self, *text):
+        self.__user_literals.extend(text)
 
     def configure_struct_suffix(self, suffix):
         self.__struct_suffix = suffix
@@ -158,20 +162,18 @@ class CGenerator(GeneratorBase):
         right = 70 - l - left
         self.fh.write('\n/*%s %s %s*/\n\n' % ('-' * left, tag, '-' * right))
 
-    def finish(self):
-        # Sort structs in complexity order so later structs can embed eariler structs.
-        self.__structs.sort(self.__compare_structs)
-
-        self.fh.write('\n')
-
-        if len(self.__imports) > 0:
-            self.__separator('imports')
-
+    def __emit_imports(self):
+        if len(self.__imports) == 0:
+            return
+        self.__separator('imports')
         for filename in self.__imports:
             self.fh.write('#include "%s.h"\n' % (filename))
 
-        if len(self.__primitives) > 0:
-            self.__separator('primitives')
+    def __emit_primitives(self):
+        if len(self.__primitives) == 0:
+            return
+
+        self.__separator('primitives')
 
         for t in self.__primitives:
             if not t.is_external():
@@ -184,24 +186,40 @@ class CGenerator(GeneratorBase):
             else:
                 self.__ctypename[t] = t.name
 
-        if len(self.__constants) > 0:
-            self.__separator('constants')
-            self.fh.write('enum%s' % (self.__obrace))
-            for x in xrange(0, len(self.__constants)):
-                c = self.__constants[x]
-                self.fh.write('%s%s = %d%s\n' % 
-                        (self.__indent, c.name, c.value,
-                         ', ' if (x + 1) < len(self.__constants) else ''))
-            self.fh.write('};\n')
+    def __emit_constants(self):
+        if len(self.__constants) == 0:
+            return
 
-        if len(self.__structs) > 0:
-            self.__separator('predeclarations')
+        self.__separator('constants')
 
+        self.fh.write('enum%s' % (self.__obrace))
+        for x in xrange(0, len(self.__constants)):
+            c = self.__constants[x]
+            self.fh.write('%s%s = %d%s\n' % 
+                    (self.__indent, c.name, c.value,
+                     ', ' if (x + 1) < len(self.__constants) else ''))
+        self.fh.write('};\n')
+
+    def __emit_predecl(self):
+        if len(self.__structs) == 0:
+            return
+        self.__separator('predeclarations')
         for t in self.__structs:
             self.fh.write('struct %s%s;\n' % (t.name, self.__struct_suffix))
 
-        if len(self.__enums) > 0:
-            self.__separator('enums')
+    def __emit_user_literals(self):
+        if len(self.__structs) == 0:
+            return
+        self.__separator('user literals')
+        for t in self.__user_literals:
+            self.fh.write(t)
+            self.fh.write('\n')
+
+    def __emit_enums(self):
+        if len(self.__enums) == 0:
+            return
+
+        self.__separator('enums')
 
         for t in self.__enums:
             self.fh.write('typedef enum%s' % (self.__obrace))
@@ -214,16 +232,37 @@ class CGenerator(GeneratorBase):
                 self.fh.write('\n')
             self.fh.write('} %s;\n' % (t.name))
 
-        if len(self.__structs) > 0:
-            self.__separator('structs')
+    def __emit_structs(self):
+        if len(self.__structs) == 0:
+            return
+
+        self.__separator('structs')
 
         for t in self.__structs:
             self.fh.write('\ntypedef struct %s%s%s' % (t.name, self.__struct_suffix, self.__obrace))
             for m in t.members:
                 self.fh.write(self.__indent)
-                self.fh.write(self.vardef(m.mtype, ' ' + m.mname))
+                ct = m.get_options('c_decl')
+                if len(ct) == 0:
+                    self.fh.write(self.vardef(m.mtype, ' ' + m.mname))
+                else:
+                    self.fh.write(ct[0].pos_param(0))
                 self.fh.write(';\n');
             self.fh.write('} %s;\n' % (t.name))
+
+    def finish(self):
+        # Sort structs in complexity order so later structs can embed eariler structs.
+        self.__structs.sort(self.__compare_structs)
+
+        self.fh.write('\n')
+
+        self.__emit_imports()
+        self.__emit_primitives()
+        self.__emit_constants()
+        self.__emit_predecl()
+        self.__emit_user_literals()
+        self.__emit_enums()
+        self.__emit_structs()
 
         self.fh.write('\n#endif\n')
 
