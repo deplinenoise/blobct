@@ -17,7 +17,7 @@ languages = {
 parser.add_argument('input_fn', metavar='<source file>',
         help='Input source file')
 parser.add_argument('-I', metavar='<path>', dest='import_paths', action='append',
-        help='Specify import search directories')
+        help='Specify import search directories', default=['.'])
 parser.add_argument('-m', '--merge-imports', dest='merge_imports', action='store_true',
         help='Merge all imports together and produce stand-alone output suitable for distribution')
 parser.add_argument('-o', metavar='<file>', dest='output_fn',
@@ -31,7 +31,7 @@ parser.add_argument('-l', metavar='<language>', dest='lang', required=True,
 args = parser.parse_args()
 
 try:
-    parse_tree = blobc.parse_file(args.input_fn, handle_imports=True)
+    parse_tree = blobc.parse_file(args.input_fn, import_dirs=args.import_paths, handle_imports=True)
 
     type_system = blobc.compile_types(parse_tree)
 
