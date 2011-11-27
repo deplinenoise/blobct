@@ -131,8 +131,7 @@ class CGenerator(GeneratorBase):
         self.__imports.append(fn)
 
     def visit_primitive(self, t):
-        if not t.loc.is_import:
-            self.__primitives.append(t)
+        self.__primitives.append(t)
 
     def visit_enum(self, t):
         if not t.loc.is_import:
@@ -179,7 +178,10 @@ class CGenerator(GeneratorBase):
             if not t.is_external():
                 prim_name = self.find_prim(t)
                 if prim_name != t.name:
-                    self.fh.write('typedef %s %s;\n' % (prim_name, self.ctypename(t)))
+                    if not t.loc.is_import:
+                        self.fh.write('typedef %s %s;\n' % (prim_name, self.ctypename(t)))
+                    else:
+                        self.ctypename(t)
                 else:
                     # map e.g. char -> char
                     self.__ctypename[t] = prim_name
