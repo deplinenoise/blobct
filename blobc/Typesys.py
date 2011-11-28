@@ -564,7 +564,10 @@ class TypeSystem(object):
 
     def __resolve_type(self, t):
         if isinstance(t, RawSimpleType):
-            return self.__types[t.name]
+            res = self.__types.get(t.name)
+            if res is None:
+                raise TypeSystemException(t.loc, "undefined type '%s'" % (t.name))
+            return res
         elif isinstance(t, RawPointerType):
             if t.is_cstring:
                 return self.__resolve_type(t.basetype).cstring_type(t.loc)

@@ -91,6 +91,9 @@ try:
         if fh is not sys.stdout:
             fh.close()
 
+except blobc.Typesys.TypeSystemException as ex:
+    sys.stderr.write(ex.message)
+    sys.exit(1)
 except blobc.ParseError as ex:
     sys.stderr.write('%s(%d): %s\n' % (ex.filename, ex.lineno, ex.msg))
     sys.exit(1)
