@@ -1,5 +1,8 @@
 import blobc
 
+class GeneratorException(Exception):
+    pass
+
 class GeneratorBase(object):
     def __init__(self):
         self.__curr_option = None

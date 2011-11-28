@@ -1,8 +1,7 @@
 import blobc
 import blobc.Typesys
-from . import GeneratorBase
+from . import GeneratorBase, GeneratorException
 import md5
-
 
 class CGenerator(GeneratorBase):
 
@@ -25,7 +24,8 @@ class CGenerator(GeneratorBase):
         self.__primitives = []
         self.__structs = []
         self.__constants = []
-        self.__weights = {}
+        self.__struct_order = {}
+        self.__struct_order_list = [] # in nested dependency order, least complex first
         self.__indent = '\t'
         self.__obrace = ' {\n'
         self.__struct_suffix = '_TAG'
@@ -104,8 +104,10 @@ class CGenerator(GeneratorBase):
             return '%s%s' % (self.ctypename(t), var)
         elif t is blobc.Typesys.VoidType.instance:
             return 'void%s' % (var)
+        elif isinstance(t, blobc.Typesys.EnumType):
+            return '%s%s' % (t.name, var)
         else:
-            assert False
+            raise GeneratorException("type %s not supported" % (str(t)))
 
     def find_prim(self, t):
         if type(t) == blobc.Typesys.FloatingType:
@@ -142,16 +144,15 @@ class CGenerator(GeneratorBase):
         if not t.loc.is_import:
             self.__structs.append(t)
 
-    def __weight_of(self, t):
-        w = self.__weights.get(t)
-        if w is None:
-            w = 1
-            for m in t.members:
-                if isinstance(m.mtype, blobc.Typesys.StructType):
-                    w += self.__weight_of(m.mtype)
-            w *= 2
-            self.__weights[t] = w
-        return w
+    def __visit_struct(self, t):
+        if self.__struct_order.has_key(t):
+            return
+        for m in t.members:
+            if isinstance(m.mtype, blobc.Typesys.StructType):
+                self.__visit_struct(m.mtype)
+        if not self.__struct_order.has_key(t):
+            self.__struct_order[t] = True
+            self.__struct_order_list.append(t)
 
     def __compare_structs(self, a, b):
         return cmp(self.__weight_of(a), self.__weight_of(b))
@@ -207,7 +208,7 @@ class CGenerator(GeneratorBase):
         if len(self.__structs) == 0:
             return
         self.__separator('predeclarations')
-        for t in self.__structs:
+        for t in self.__struct_order_list:
             self.fh.write('struct %s%s;\n' % (t.name, self.__struct_suffix))
 
     def __emit_user_literals(self):
@@ -241,7 +242,9 @@ class CGenerator(GeneratorBase):
 
         self.__separator('structs')
 
-        for t in self.__structs:
+        for t in self.__struct_order_list:
+            if t.loc.is_import:
+                continue
             self.fh.write('\ntypedef struct %s%s%s' % (t.name, self.__struct_suffix, self.__obrace))
             for m in t.members:
                 self.fh.write(self.__indent)
@@ -255,7 +258,8 @@ class CGenerator(GeneratorBase):
 
     def finish(self):
         # Sort structs in complexity order so later structs can embed eariler structs.
-        self.__structs.sort(self.__compare_structs)
+        for t in self.__structs:
+            self.__visit_struct(t)
 
         self.fh.write('\n')
 
@@ -274,6 +278,8 @@ class CGenerator(GeneratorBase):
             return
 
         for t in self.__structs:
+            if t.loc.is_import:
+                continue
             sizes = [(tm, tm.size_align(t)) for tm in self.__tms]
             aux.write('typedef char __sizecheck_%s [\n' % (t.name))
             for tm, (size, align) in sizes:
