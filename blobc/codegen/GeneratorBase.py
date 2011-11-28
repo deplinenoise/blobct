@@ -15,7 +15,7 @@ class GeneratorBase(object):
         if not hasattr(self, method_name):
             self.bad_option('"%s": no such generator option' % (name))
         try:
-            getattr(self, method_name)(*option.pos_params(), **option.kw_params())
+            getattr(self, method_name)(option.loc, *option.pos_params(), **option.kw_params())
         except Exception as ex:
             self.bad_option('"%s": %s' % (name, ex))
 

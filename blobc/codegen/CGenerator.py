@@ -59,13 +59,14 @@ class CGenerator(GeneratorBase):
             self.aux_fh.write('#endif\n')
             self.aux_fh.write('#endif\n\n')
 
-    def configure_emit(self, *text):
-        self.__user_literals.extend(text)
+    def configure_emit(self, loc, *text):
+        if not loc.is_import:
+            self.__user_literals.extend(text)
 
-    def configure_struct_suffix(self, suffix):
+    def configure_struct_suffix(self, loc, suffix):
         self.__struct_suffix = suffix
 
-    def configure_indent_style(self, style, size=4):
+    def configure_indent_style(self, loc, style, size=4):
         if style == 'spaces':
             self.__indent = size * ' '
         elif style == 'tabs':
@@ -74,7 +75,7 @@ class CGenerator(GeneratorBase):
             self.bad_option("unsupported style '%s'; use one of 'spaces' or 'tabs'" %
                     (style))
 
-    def configure_brace_style(self, style):
+    def configure_brace_style(self, loc, style):
         if style == 'k&r':
             self.__obrace = ' {\n'
         elif style == 'newline':
@@ -283,4 +284,5 @@ class CGenerator(GeneratorBase):
             aux.write('-1];\n')
 
     def visit_constant(self, c):
-        self.__constants.append(c)
+        if not c.loc.is_import:
+            self.__constants.append(c)

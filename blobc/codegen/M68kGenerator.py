@@ -11,16 +11,17 @@ class M68kGenerator(GeneratorBase):
         self.__user_literals = []
         self.fh = fh
 
-    def configure_include_suffix(self, value):
+    def configure_include_suffix(self, loc, value):
         self.__include_suffix = str(value)
 
-    def configure_emit(self, *text):
-        self.__user_literals.extend(text)
+    def configure_emit(self, loc, *text):
+        if not loc.is_import:
+            self.__user_literals.extend(text)
 
-    def configure_sizeof_suffix(self, suffix):
+    def configure_sizeof_suffix(self, loc, suffix):
         self.__sizeof_suffix = str(suffix)
 
-    def configure_alignof_suffix(self, suffix):
+    def configure_alignof_suffix(self, loc, suffix):
         self.__alignof_suffix = str(suffix)
 
     def start(self):
@@ -48,11 +49,14 @@ class M68kGenerator(GeneratorBase):
     def visit_enum(self, t):
         if t.loc.is_import:
             return 
+
         self.fh.write('\n; enum %s\n' % (t.name))
         for m in t.members:
             self.print_equ('%s_%s' % (t.name, m.name), m.value)
 
     def visit_constant(self, c):
+        if c.loc.is_import:
+            return
         self.fh.write('\n; constant\n')
         self.print_equ(c.name, c.value)
 
