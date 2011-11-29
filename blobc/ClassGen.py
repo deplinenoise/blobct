@@ -49,12 +49,12 @@ class EnumValue(object):
 
 class EnumImpl(object):
     def __init__(self, srctype):
-        self.__srctype = srctype
+        self._srctype = srctype
         for m in srctype.members:
             setattr(self, m.name, EnumValue(m.name, m.value))
 
     def __str__(self):
-        return 'enum %s' % (self.__srctype.name)
+        return 'enum %s' % (self._srctype.name)
 
 def make_class(t, typesys):
     fields = {}

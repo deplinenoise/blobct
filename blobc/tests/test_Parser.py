@@ -252,18 +252,18 @@ class TestParser(unittest.TestCase):
         self.assertIsInstance(p[0].expr.expr, RawIntLiteralExpr)
         self.assertEqual(p[0].expr.expr.value, 7)
 
-    def __do_binop(self, optype, opstr):
+    def _do_binop(self, optype, opstr):
         p = blobc.parse_string("iconst a = b %s 1;" % (opstr))
         self.assertIsInstance(p[0].expr, optype)
         self.assertIsInstance(p[0].expr.lhs, RawNamedConstantExpr)
         self.assertIsInstance(p[0].expr.rhs, RawIntLiteralExpr)
 
-    def test_expr_binop1(self): self.__do_binop(RawAddExpr, '+')
-    def test_expr_binop2(self): self.__do_binop(RawSubExpr, '-')
-    def test_expr_binop3(self): self.__do_binop(RawMulExpr, '*')
-    def test_expr_binop4(self): self.__do_binop(RawDivExpr, '/')
-    def test_expr_binop5(self): self.__do_binop(RawShiftLeftExpr, '<<')
-    def test_expr_binop6(self): self.__do_binop(RawShiftRightExpr, '>>')
+    def test_expr_binop1(self): self._do_binop(RawAddExpr, '+')
+    def test_expr_binop2(self): self._do_binop(RawSubExpr, '-')
+    def test_expr_binop3(self): self._do_binop(RawMulExpr, '*')
+    def test_expr_binop4(self): self._do_binop(RawDivExpr, '/')
+    def test_expr_binop5(self): self._do_binop(RawShiftLeftExpr, '<<')
+    def test_expr_binop6(self): self._do_binop(RawShiftRightExpr, '>>')
 
     def test_precedence1(self):
         p = blobc.parse_string('''

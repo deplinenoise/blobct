@@ -3,7 +3,7 @@ import unittest
 from blobc.Typesys import TypeSystemException
 
 class TestClassGen(unittest.TestCase):
-    def __setup(self, src):
+    def _setup(self, src):
         pt = blobc.parse_string(src)
         tsys = blobc.compile_types(pt)
         classes = {}
@@ -11,7 +11,7 @@ class TestClassGen(unittest.TestCase):
         return classes
 
     def test_struct(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive ubyte uint 1;
             defprimitive ulong uint 4;
             struct foo {
@@ -30,7 +30,7 @@ class TestClassGen(unittest.TestCase):
         self.assertTrue(hasattr(inst, 'b'))
 
     def test_enum(self):
-        c = self.__setup("""
+        c = self._setup("""
             enum Foo {
                 BAR = 7,
                 BAZ,
@@ -47,7 +47,7 @@ class TestClassGen(unittest.TestCase):
         self.assertEqual(cls.FROB.value, 9)
 
     def test_struct_base_ptr(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive u32 uint 4;
             struct foo_base {
                 u32 a;
@@ -63,7 +63,7 @@ class TestClassGen(unittest.TestCase):
         data = bar(test=foo(a=1, b=2))
 
     def test_struct_base_ptr_recursively(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive u32 uint 4;
             struct foo_base1 {
                 u32 a;
@@ -82,7 +82,7 @@ class TestClassGen(unittest.TestCase):
         data = bar(test=foo(a=1, b=2, c=3))
 
     def test_struct_base_ptr_error(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive u32 uint 4;
             struct foo_base {
                 u32 a;

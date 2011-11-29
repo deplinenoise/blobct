@@ -5,7 +5,7 @@ from struct import pack
 
 class TestSerializer(unittest.TestCase):
 
-    def __setup(self, src):
+    def _setup(self, src):
         pt = blobc.parse_string(src)
         tsys = blobc.compile_types(pt)
         classes = {}
@@ -13,7 +13,7 @@ class TestSerializer(unittest.TestCase):
         return classes
 
     def test_simple(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive ubyte uint 1;
             defprimitive ushort uint 2;
             defprimitive ulong uint 4;
@@ -31,7 +31,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, '')
 
     def test_padding(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive ubyte uint 1;
             defprimitive ulong uint 4;
             struct foo {
@@ -46,7 +46,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, '')
 
     def test_ptr(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive ulong uint 4;
             struct foo {
                 ulong a;
@@ -66,7 +66,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, pack('>I', 4))
 
     def test_ptr_array(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive ulong uint 4;
             struct foo {
                 ulong* a;
@@ -79,7 +79,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, pack('>I', 0))
 
     def test_ptr_inside_array(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive ulong uint 4;
             struct foo {
                 ulong* a;
@@ -95,7 +95,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, pack('>II', 0, 4))
 
     def test_ptr_inside_array_unanchored(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive ulong uint 4;
             struct foo {
                 ulong* b;
@@ -110,7 +110,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, pack('>I', 0))
 
     def test_enum(self):
-        c = self.__setup("""
+        c = self._setup("""
             enum meh {
                 BAR = 7,
             }
@@ -126,7 +126,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, '')
 
     def test_enum_array(self):
-        c = self.__setup("""
+        c = self._setup("""
             enum meh {
                 A = 3,
                 B = 11,
@@ -145,7 +145,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, pack('>I', 0))
 
     def test_void_ptr_null(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive ulong uint 4;
             struct bar {
                 void* ptr;
@@ -158,7 +158,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, '')
 
     def test_void_ptr_instance(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive ulong uint 4;
             struct foo {
                 ulong a;
@@ -175,7 +175,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, pack('>I', 0))
 
     def test_void_ptr_array(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive ulong uint 4;
             struct foo {
                 ulong[3] a;
@@ -192,7 +192,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, pack('>I', 0))
 
     def test_cstring(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive char8 character 1;
             struct foo {
                 __cstring<char8> a;
@@ -205,7 +205,7 @@ class TestSerializer(unittest.TestCase):
         self.assertEqual(relocs, pack('>I', 0))
 
     def test_ptr_inside_cstring(self):
-        c = self.__setup("""
+        c = self._setup("""
             defprimitive char8 character 1;
             struct foo {
                 __cstring<char8> a;

@@ -27,27 +27,27 @@ class TestCodeGen_M68K(unittest.TestCase):
             self.output = compress_c(out_fh.getvalue())
             self.aux_output = compress_c(aux_fh.getvalue())
 
-    def __compile(self, src):
+    def _compile(self, src):
         type(self).Data(sr)
 
-    def __check(self, src, expected):
+    def _check(self, src, expected):
         d = type(self).Data(src)
         self.assertEqual(compress_c(expected), d.output)
 
     def test_constant1(self):
-        d = self.__check('''iconst foo = 7;''', '''foo equ 7''')
+        d = self._check('''iconst foo = 7;''', '''foo equ 7''')
 
     def test_constant2(self):
-        d = self.__check('''iconst foo = 7 + 9;''', '''foo equ 16''')
+        d = self._check('''iconst foo = 7 + 9;''', '''foo equ 16''')
 
     def test_constant3(self):
-        d = self.__check('''iconst foo = 7 / 9;''', '''foo equ 0''')
+        d = self._check('''iconst foo = 7 / 9;''', '''foo equ 0''')
 
     def test_constant4(self):
-        d = self.__check('''iconst foo = 1 << 8;''', '''foo equ 256''')
+        d = self._check('''iconst foo = 1 << 8;''', '''foo equ 256''')
 
     def test_constant5(self):
-        d = self.__check('''
+        d = self._check('''
             iconst foo = 17;
             iconst bar = 10 * foo;
         ''', '''
@@ -56,7 +56,7 @@ class TestCodeGen_M68K(unittest.TestCase):
         ''')
 
     def test_struct_empty(self):
-        d = self.__check('''
+        d = self._check('''
             struct Foo { };
         ''', '''
             Foo_SIZE equ 0
@@ -64,7 +64,7 @@ class TestCodeGen_M68K(unittest.TestCase):
         ''')
 
     def test_struct_single_member(self):
-        d = self.__check(stdprim + '''
+        d = self._check(stdprim + '''
             struct Foo {
                 u32 Bar;
             };
@@ -75,7 +75,7 @@ class TestCodeGen_M68K(unittest.TestCase):
         ''')
 
     def test_sizeof_suffix(self):
-        d = self.__check(stdprim + '''
+        d = self._check(stdprim + '''
             generator m68k : sizeof_suffix("_FOO"), alignof_suffix("_BAR")
             struct Foo {
                 u32 Bar;
@@ -87,7 +87,7 @@ class TestCodeGen_M68K(unittest.TestCase):
         ''')
 
     def test_array_simple(self):
-        d = self.__check(stdprim + '''
+        d = self._check(stdprim + '''
             struct Foo {
                 u32[4] Bar;
             };
@@ -98,7 +98,7 @@ class TestCodeGen_M68K(unittest.TestCase):
         ''')
 
     def test_array_multi(self):
-        d = self.__check(stdprim + '''
+        d = self._check(stdprim + '''
             struct Foo {
                 u32[1,2,3] Bar;
             };

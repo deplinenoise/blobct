@@ -19,39 +19,39 @@ class CGenerator(GeneratorBase):
         self.output_fn = output_fn
         self.fh = fh
         self.aux_fh = aux_fh
-        self.__imports = []
-        self.__user_literals = []
-        self.__enums = []
-        self.__primitives = []
-        self.__structs = []
-        self.__constants = []
-        self.__struct_order = {}
-        self.__struct_order_list = [] # in nested dependency order, least complex first
-        self.__indent = '\t'
-        self.__obrace = ' {\n'
-        self.__struct_suffix = '_TAG'
-        self.__ctypename = {}
-        self.__print_separators = True
-        self.__print_guard = True
-        self.__print_inttypes = True
+        self._imports = []
+        self._user_literals = []
+        self._enums = []
+        self._primitives = []
+        self._structs = []
+        self._constants = []
+        self._struct_order = {}
+        self._struct_order_list = [] # in nested dependency order, least complex first
+        self._indent = '\t'
+        self._obrace = ' {\n'
+        self._struct_suffix = '_TAG'
+        self._ctypename = {}
+        self._print_separators = True
+        self._print_guard = True
+        self._print_inttypes = True
         m = md5.new()
         m.update(self.filename)
         self.guard = 'BLOBC_%s' % (m.hexdigest())
 
     def start(self):
-        if self.__print_guard:
+        if self._print_guard:
             self.fh.write('#ifndef %s\n#define %s\n' % (self.guard, self.guard))
 
-        if self.__print_inttypes:
+        if self._print_inttypes:
             self.fh.write('\n#include <inttypes.h>\n\n')
 
         if self.aux_fh:
             # create a set of target machines to cover ptr size and alignment variations
-            self.__tms = []
+            self._tms = []
             for ptr_size in (4, 8):
                 for ptr_align in (4, 8):
                     t = blobc.TargetMachine(pointer_size = ptr_size, pointer_align = ptr_align)
-                    self.__tms.append(t)
+                    self._tms.append(t)
                     
             if self.output_fn is not None:
                 self.aux_fh.write('#include "%s"\n\n' % (self.output_fn))
@@ -68,50 +68,50 @@ class CGenerator(GeneratorBase):
 
     def configure_emit(self, loc, *text):
         if not loc.is_import:
-            self.__user_literals.extend(text)
+            self._user_literals.extend(text)
 
     def configure_struct_suffix(self, loc, suffix):
-        self.__struct_suffix = suffix
+        self._struct_suffix = suffix
 
     def configure_indent_style(self, loc, style, size=4):
         if style == 'spaces':
-            self.__indent = size * ' '
+            self._indent = size * ' '
         elif style == 'tabs':
-            self.__indent = '\t'
+            self._indent = '\t'
         else:
             self.bad_option("unsupported style '%s'; use one of 'spaces' or 'tabs'" %
                     (style))
 
     def configure_no_separators(self, loc):
-        self.__print_separators = False
+        self._print_separators = False
 
     def configure_no_include_guard(self, loc):
-        self.__print_guard = False
+        self._print_guard = False
 
     def configure_no_inttypes(self, loc):
-        self.__print_inttypes = False
+        self._print_inttypes = False
 
     def configure_brace_style(self, loc, style):
         if style == 'k&r':
-            self.__obrace = ' {\n'
+            self._obrace = ' {\n'
         elif style == 'newline':
-            self.__obrace = '\n{\n'
+            self._obrace = '\n{\n'
         else:
             self.bad_option(o, "unsupported indentation style '%s'" % (style))
 
     def ctypename(self, t):
-        n = self.__ctypename.get(t)
+        n = self._ctypename.get(t)
         if n is None:
             if t.name in CGenerator.c_reserved_words:
                 n = "blobc_c_wrap_" + t.name
             else:
                 n = t.name
-            self.__ctypename[t] = n
+            self._ctypename[t] = n
         return n
 
     def vardef(self, t, var):
         if isinstance(t, blobc.Typesys.StructType):
-            return 'struct %s%s %s' % (self.ctypename(t), self.__struct_suffix, var)
+            return 'struct %s%s %s' % (self.ctypename(t), self._struct_suffix, var)
         elif isinstance(t, blobc.Typesys.ArrayType):
             return '%s[%d]' % (self.vardef(t.base_type, var), t.dim)
         elif isinstance(t, blobc.Typesys.PointerType):
@@ -147,53 +147,53 @@ class CGenerator(GeneratorBase):
             assert false
 
     def visit_import(self, fn):
-        self.__imports.append(fn)
+        self._imports.append(fn)
 
     def visit_primitive(self, t):
-        self.__primitives.append(t)
+        self._primitives.append(t)
 
     def visit_enum(self, t):
         if not t.location.is_import:
-            self.__enums.append(t)
+            self._enums.append(t)
 
     def visit_struct(self, t):
         if not t.location.is_import:
-            self.__structs.append(t)
+            self._structs.append(t)
 
-    def __visit_struct(self, t):
-        if self.__struct_order.has_key(t):
+    def _visit_struct(self, t):
+        if self._struct_order.has_key(t):
             return
         for m in t.members:
             if isinstance(m.mtype, blobc.Typesys.StructType):
-                self.__visit_struct(m.mtype)
-        if not self.__struct_order.has_key(t):
-            self.__struct_order[t] = True
-            self.__struct_order_list.append(t)
+                self._visit_struct(m.mtype)
+        if not self._struct_order.has_key(t):
+            self._struct_order[t] = True
+            self._struct_order_list.append(t)
 
-    def __compare_structs(self, a, b):
-        return cmp(self.__weight_of(a), self.__weight_of(b))
+    def _compare_structs(self, a, b):
+        return cmp(self._weight_of(a), self._weight_of(b))
 
-    def __separator(self, tag):
-        if self.__print_separators:
+    def _separator(self, tag):
+        if self._print_separators:
             l = len(tag)
             left = 70 / 2 - l / 2
             right = 70 - l - left
             self.fh.write('\n/*%s %s %s*/\n\n' % ('-' * left, tag, '-' * right))
 
-    def __emit_imports(self):
-        if len(self.__imports) == 0:
+    def _emit_imports(self):
+        if len(self._imports) == 0:
             return
-        self.__separator('imports')
-        for filename in self.__imports:
+        self._separator('imports')
+        for filename in self._imports:
             self.fh.write('#include "%s.h"\n' % (filename))
 
-    def __emit_primitives(self):
-        if len(self.__primitives) == 0:
+    def _emit_primitives(self):
+        if len(self._primitives) == 0:
             return
 
-        self.__separator('primitives')
+        self._separator('primitives')
 
-        for t in self.__primitives:
+        for t in self._primitives:
             if not t.is_external:
                 prim_name = self.find_prim(t)
                 if prim_name != t.name:
@@ -203,68 +203,68 @@ class CGenerator(GeneratorBase):
                         self.ctypename(t)
                 else:
                     # map e.g. char -> char
-                    self.__ctypename[t] = prim_name
+                    self._ctypename[t] = prim_name
             else:
-                self.__ctypename[t] = t.name
+                self._ctypename[t] = t.name
 
-    def __emit_constants(self):
-        if len(self.__constants) == 0:
+    def _emit_constants(self):
+        if len(self._constants) == 0:
             return
 
-        self.__separator('constants')
+        self._separator('constants')
 
-        self.fh.write('enum%s' % (self.__obrace))
-        for x in xrange(0, len(self.__constants)):
-            name, value = self.__constants[x]
+        self.fh.write('enum%s' % (self._obrace))
+        for x in xrange(0, len(self._constants)):
+            name, value = self._constants[x]
             self.fh.write('%s%s = %d%s\n' % 
-                    (self.__indent, name, value,
-                     ', ' if (x + 1) < len(self.__constants) else ''))
+                    (self._indent, name, value,
+                     ', ' if (x + 1) < len(self._constants) else ''))
         self.fh.write('};\n')
 
-    def __emit_predecl(self):
-        if len(self.__structs) == 0:
+    def _emit_predecl(self):
+        if len(self._structs) == 0:
             return
-        self.__separator('predeclarations')
-        for t in self.__struct_order_list:
-            self.fh.write('struct %s%s;\n' % (t.name, self.__struct_suffix))
+        self._separator('predeclarations')
+        for t in self._struct_order_list:
+            self.fh.write('struct %s%s;\n' % (t.name, self._struct_suffix))
 
-    def __emit_user_literals(self):
-        if len(self.__structs) == 0:
+    def _emit_user_literals(self):
+        if len(self._structs) == 0:
             return
-        self.__separator('user literals')
-        for t in self.__user_literals:
+        self._separator('user literals')
+        for t in self._user_literals:
             self.fh.write(t)
             self.fh.write('\n')
 
-    def __emit_enums(self):
-        if len(self.__enums) == 0:
+    def _emit_enums(self):
+        if len(self._enums) == 0:
             return
 
-        self.__separator('enums')
+        self._separator('enums')
 
-        for t in self.__enums:
-            self.fh.write('typedef enum%s' % (self.__obrace))
+        for t in self._enums:
+            self.fh.write('typedef enum%s' % (self._obrace))
             mcount = len(t.members)
             for x in xrange(0, mcount):
                 m = t.members[x]
-                self.fh.write('%s%s_%s = %d' % (self.__indent, t.name, m.name, m.value))
+                self.fh.write('%s%s_%s = %d' % (self._indent, t.name, m.name, m.value))
                 if x + 1 < mcount:
                     self.fh.write(',');
                 self.fh.write('\n')
             self.fh.write('} %s;\n' % (t.name))
 
-    def __emit_structs(self):
-        if len(self.__structs) == 0:
+    def _emit_structs(self):
+        if len(self._structs) == 0:
             return
 
-        self.__separator('structs')
+        self._separator('structs')
 
-        for t in self.__struct_order_list:
+        for t in self._struct_order_list:
             if t.location.is_import:
                 continue
-            self.fh.write('\ntypedef struct %s%s%s' % (t.name, self.__struct_suffix, self.__obrace))
+            self.fh.write('\ntypedef struct %s%s%s' % (t.name, self._struct_suffix, self._obrace))
             for m in t.members:
-                self.fh.write(self.__indent)
+                self.fh.write(self._indent)
                 ct = m.get_options('c_decl')
                 if len(ct) == 0:
                     self.fh.write(self.vardef(m.mtype, ' ' + m.mname))
@@ -275,32 +275,32 @@ class CGenerator(GeneratorBase):
 
     def finish(self):
         # Sort structs in complexity order so later structs can embed eariler structs.
-        for t in self.__structs:
-            self.__visit_struct(t)
+        for t in self._structs:
+            self._visit_struct(t)
 
         self.fh.write('\n')
 
-        self.__emit_imports()
-        self.__emit_primitives()
-        self.__emit_constants()
-        self.__emit_predecl()
-        self.__emit_user_literals()
-        self.__emit_enums()
-        self.__emit_structs()
+        self._emit_imports()
+        self._emit_primitives()
+        self._emit_constants()
+        self._emit_predecl()
+        self._emit_user_literals()
+        self._emit_enums()
+        self._emit_structs()
 
-        if self.__print_guard:
+        if self._print_guard:
             self.fh.write('\n#endif\n')
 
         aux = self.aux_fh
         if not aux:
             return
 
-        for t in self.__structs:
+        for t in self._structs:
             if t.location.is_import:
                 continue
             name = t.name
-            sizes = [(tm, tm.size_align(t)) for tm in self.__tms]
-            aux.write('typedef char __sizecheck_%s [\n' % (name))
+            sizes = [(tm, tm.size_align(t)) for tm in self._tms]
+            aux.write('typedef char sizecheck_%s_ [\n' % (name))
             for tm, (size, align) in sizes:
                 aux.write('(sizeof(void*) == %d && ALIGNOF(void*) == %d && \n' % (
                     tm.pointer_size, tm.pointer_align))
@@ -310,4 +310,4 @@ class CGenerator(GeneratorBase):
 
     def visit_constant(self, name, value, is_import):
         if not is_import:
-            self.__constants.append((name, value))
+            self._constants.append((name, value))

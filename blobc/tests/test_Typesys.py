@@ -25,30 +25,30 @@ class ConstantEnvTest(unittest.TestCase):
 
 class TestTypeSystem(unittest.TestCase):
 
-    def __setup(self, src):
+    def _setup(self, src):
         pt = blobc.parse_string(src)
         return blobc.compile_types(pt)
 
     def test_uint(self):
-        tsys = self.__setup(""" defprimitive a uint 4; """)
+        tsys = self._setup(""" defprimitive a uint 4; """)
         ta = tsys.lookup('a')
         self.assertIsInstance(ta, blobc.Typesys.UnsignedIntType)
         self.assertEqual(ta.size, 4)
 
     def test_sint(self):
-        tsys = self.__setup(""" defprimitive a sint 4; """)
+        tsys = self._setup(""" defprimitive a sint 4; """)
         ta = tsys.lookup('a')
         self.assertIsInstance(ta, blobc.Typesys.SignedIntType)
         self.assertEqual(ta.size, 4)
 
     def test_float(self):
-        tsys = self.__setup(""" defprimitive a float 4; """)
+        tsys = self._setup(""" defprimitive a float 4; """)
         ta = tsys.lookup('a')
         self.assertIsInstance(ta, blobc.Typesys.FloatingType)
         self.assertEqual(ta.size, 4)
 
     def test_struct(self):
-        tsys = self.__setup("""
+        tsys = self._setup("""
             defprimitive u32 uint 4;
             struct foo {
                 u32 a;
@@ -63,7 +63,7 @@ class TestTypeSystem(unittest.TestCase):
         self.assertIs(ta.members[0].mtype, ta.members[1].mtype)
 
     def test_struct_base(self):
-        tsys = self.__setup("""
+        tsys = self._setup("""
             defprimitive u32 uint 4;
             struct foo_base {
                 u32 a;
@@ -81,7 +81,7 @@ class TestTypeSystem(unittest.TestCase):
 
     def test_struct_base_error(self):
         with self.assertRaises(TypeSystemException):
-            self.__setup("""
+            self._setup("""
                 defprimitive u32 uint 4;
                 struct foo_base {
                     u32 a;
@@ -92,7 +92,7 @@ class TestTypeSystem(unittest.TestCase):
             """)
 
     def test_enum1(self):
-        tsys = self.__setup("""
+        tsys = self._setup("""
             enum foo {
                 a,
                 b = 8,
@@ -110,7 +110,7 @@ class TestTypeSystem(unittest.TestCase):
         self.assertEqual(ta.members[2].value, 9)
 
     def test_sptr(self):
-        tsys = self.__setup("""
+        tsys = self._setup("""
             struct foo {
                 void *a;
                 void **b;
@@ -128,7 +128,7 @@ class TestTypeSystem(unittest.TestCase):
         self.assertIs(b.mtype.base_type.base_type, blobc.Typesys.VoidType.instance)
 
     def test_cstring(self):
-        tsys = self.__setup('''
+        tsys = self._setup('''
         defprimitive char character 1;
         struct foo {
                 __cstring<char> a;
@@ -137,20 +137,20 @@ class TestTypeSystem(unittest.TestCase):
         self.assertIsInstance(foo.members[0].mtype, blobc.Typesys.CStringType)
         self.assertIsInstance(foo.members[0].mtype.base_type, blobc.Typesys.CharacterType)
 
-    def __check_eval_expr(self, a, b, op, expected):
-        tsys = self.__setup("iconst val = %d %s %d;" % (a, op, b))
+    def _check_eval_expr(self, a, b, op, expected):
+        tsys = self._setup("iconst val = %d %s %d;" % (a, op, b))
         for name, value, expr in tsys.iterconsts():
             self.assertEqual(name, 'val')
             self.assertEqual(value, expected)
 
     def test_add(self):
-        self.__check_eval_expr(17, 3, '+', 20)
-        self.__check_eval_expr(17, -17, '+', 0)
-        self.__check_eval_expr(-17, 17, '+', 0)
+        self._check_eval_expr(17, 3, '+', 20)
+        self._check_eval_expr(17, -17, '+', 0)
+        self._check_eval_expr(-17, 17, '+', 0)
 
     def test_sub(self):
-        self.__check_eval_expr(17, 3, '-', 14)
-        self.__check_eval_expr(17, -17, '-', 34)
-        self.__check_eval_expr(-17, 17, '-', -34)
-        self.__check_eval_expr(-17, -17, '-', 0)
+        self._check_eval_expr(17, 3, '-', 14)
+        self._check_eval_expr(17, -17, '-', 34)
+        self._check_eval_expr(-17, 17, '-', -34)
+        self._check_eval_expr(-17, -17, '-', 0)
         

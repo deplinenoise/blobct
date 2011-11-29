@@ -5,16 +5,16 @@ class GeneratorException(Exception):
 
 class GeneratorBase(object):
     def __init__(self):
-        self.__curr_option = None
+        self._curr_option = None
 
     def bad_option(self, msg):
-        o = self.__curr_option
+        o = self._curr_option
         loc = o.location
         raise blobc.ParseError(loc.filename, loc.lineno, msg)
 
     def apply_option(self, option):
         name = option.name
-        self.__curr_option = option
+        self._curr_option = option
         method_name = 'configure_' + name
         if not hasattr(self, method_name):
             self.bad_option('"%s": no such generator option' % (name))

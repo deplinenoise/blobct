@@ -41,10 +41,10 @@ class Tokenizer(object):
         self.data = data
         self.titer = re.finditer(SCANNER, self.data)
         self.cache = None
-        self.__loc = None
+        self._loc = None
 
     def next(self):
-        self.__loc = None
+        self._loc = None
 
         if self.cache is not None:
             r = self.cache
@@ -121,16 +121,16 @@ class Tokenizer(object):
         return self.cache
 
     def loc(self):
-        if self.__loc is None:
-            self.__loc = SourceLocation(self.filename, self.lineno, self.is_import)
-        return self.__loc
+        if self._loc is None:
+            self._loc = SourceLocation(self.filename, self.lineno, self.is_import)
+        return self._loc
 
 class Parser(object):
     def __init__(self, tokenizer):
         object.__init__(self)
         self.tokenizer = tokenizer
-        self.__current_enum_name = None
-        self.__prev_enum_member = None
+        self._current_enum_name = None
+        self._prev_enum_member = None
 
     def error(self, msg):
         raise ParseError(self.tokenizer.filename, self.tokenizer.lineno, msg)
@@ -342,16 +342,16 @@ class Parser(object):
         if self.accept(TOK_PUNCT, '='):
             # the value is initialized, parse an arbitrary expression
             expr = self.require(self.r_expr)
-        elif self.__prev_enum_member is not None:
+        elif self._prev_enum_member is not None:
             # express the initializer as the previous field + 1
-            prev_name = self.__prev_enum_member.name
+            prev_name = self._prev_enum_member.name
             expr = RawAddExpr(loc, RawNamedConstantExpr(loc, prev_name), RawIntLiteralExpr(loc, 1))
         else:
             # this is the first field, which starts at zero.
             expr = RawIntLiteralExpr(loc, 0)
 
         result = RawEnumMember(name, expr, loc)
-        self.__prev_enum_member = result
+        self._prev_enum_member = result
         return result
 
     def r_enum(self):
@@ -360,12 +360,12 @@ class Parser(object):
             return None
 
         name = self.expect(TOK_WORD)
-        self.__current_enum_name = name
+        self._current_enum_name = name
 
         self.expect(TOK_PUNCT, '{')
 
         members = self.sep_nonempy_list(self.r_enum_member, ',', allow_trailing=True);
-        self.__prev_enum_member = None
+        self._prev_enum_member = None
 
         self.expect(TOK_PUNCT, '}')
         self.accept(TOK_PUNCT, ';')
@@ -390,7 +390,7 @@ class Parser(object):
         self.accept(TOK_PUNCT, ';')
         return GeneratorConfig(generator_name, options, loc)
 
-    def __binop_expr(self, types, subrule):
+    def _binop_expr(self, types, subrule):
         v = self.require(subrule)
         while True:
             loc = self.tokenizer.loc()
@@ -435,13 +435,13 @@ class Parser(object):
     MUL_TYPES = (RawMulExpr, RawDivExpr)
 
     def r_shift_expr(self):
-        return self.__binop_expr(Parser.SHIFT_TYPES, self.r_add_expr)
+        return self._binop_expr(Parser.SHIFT_TYPES, self.r_add_expr)
 
     def r_add_expr(self):
-        return self.__binop_expr(Parser.ADD_TYPES, self.r_mul_expr)
+        return self._binop_expr(Parser.ADD_TYPES, self.r_mul_expr)
 
     def r_mul_expr(self):
-        return self.__binop_expr(Parser.MUL_TYPES, self.r_primary_expr)
+        return self._binop_expr(Parser.MUL_TYPES, self.r_primary_expr)
 
     def r_expr(self):
         return self.r_shift_expr()
