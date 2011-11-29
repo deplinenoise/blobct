@@ -236,3 +236,13 @@ class TestCodeGen_C(unittest.TestCase):
             typedef struct Foo_TAG { char* Bar[20]; } Foo;
         ''')
 
+    def test_cdecl_option(self):
+        d = self._check(stdprim + '''
+            struct Foo {
+                void* Bar : c_decl("struct SomeOtherType* Frob");
+            };
+        ''', outprim + '''
+            struct Foo_TAG;
+            typedef struct Foo_TAG { struct SomeOtherType* Frob; } Foo;
+        ''')
+

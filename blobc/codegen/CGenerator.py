@@ -269,7 +269,7 @@ class CGenerator(GeneratorBase):
                 if len(ct) == 0:
                     self.fh.write(self.vardef(m.mtype, ' ' + m.mname))
                 else:
-                    self.fh.write(ct[0].pos_param(0))
+                    self.fh.write(ct[0].pos_params[0])
                 self.fh.write(';\n');
             self.fh.write('} %s;\n' % (t.name))
 
