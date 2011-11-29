@@ -164,14 +164,16 @@ class CGenerator(GeneratorBase):
         if self._struct_order.has_key(t):
             return
         for m in t.members:
-            if isinstance(m.mtype, blobc.Typesys.StructType):
-                self._visit_struct(m.mtype)
+            ptype = m.mtype
+            # drop all array types to get to Foo in e.g. Foo[2, 3]
+            # note that this applies only to by-value arrays
+            while isinstance(ptype, blobc.Typesys.ArrayType):
+                ptype = ptype.base_type
+            if isinstance(ptype, blobc.Typesys.StructType):
+                self._visit_struct(ptype)
         if not self._struct_order.has_key(t):
             self._struct_order[t] = True
             self._struct_order_list.append(t)
-
-    def _compare_structs(self, a, b):
-        return cmp(self._weight_of(a), self._weight_of(b))
 
     def _separator(self, tag):
         if self._print_separators:
