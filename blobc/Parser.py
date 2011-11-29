@@ -7,6 +7,7 @@ from ParseTree import *
 SCANNER = re.compile(r'''
   (\s+)                             | # whitespace
   (//)[^\n]*                        | # comments
+  0[xX]([0-9A-Fa-f]+)               | # hexadecimal integer literals
   (\d+)                             | # integer literals
   (<<|>>)                           | # multi-char punctuation
   ([][(){}<>=,;:*+-/])              | # punctuation
@@ -58,7 +59,9 @@ class Tokenizer(object):
             except StopIteration:
                 return TOK_EOF, None
 
-            space, comment, integer, mpunct, punct, word, mstringlit, stringlit, badchar = m.groups()
+            space, comment, hexint, integer, mpunct, \
+            punct, word, mstringlit, stringlit, badchar \
+                = m.groups()
 
             if space is not None:
                 self.lineno += space.count('\n')
@@ -69,6 +72,9 @@ class Tokenizer(object):
 
             if integer is not None:
                 return TOK_INT, int(integer)
+
+            if hexint is not None:
+                return TOK_INT, int(hexint, 16)
 
             if comment is not None:
                 continue

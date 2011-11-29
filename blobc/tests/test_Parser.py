@@ -245,6 +245,16 @@ class TestParser(unittest.TestCase):
         self.assertIsInstance(p[0].expr, RawIntLiteralExpr)
         self.assertEqual(p[0].expr.value, 7)
 
+    def test_const_hex(self):
+        p = blobc.parse_string('''
+        iconst a = 0xff771124;
+        ''')
+        self.assertEqual(len(p), 1)
+        self.assertIsInstance(p[0], RawConstant)
+        self.assertEqual(p[0].name, "a")
+        self.assertIsInstance(p[0].expr, RawIntLiteralExpr)
+        self.assertEqual(p[0].expr.value, 4285993252)
+
     def test_unary_neg(self):
         p = blobc.parse_string('''iconst a = -7''')
         self.assertIsInstance(p[0], RawConstant)
