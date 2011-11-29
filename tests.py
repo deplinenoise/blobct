@@ -234,6 +234,19 @@ class TestParser(unittest.TestCase):
         self.assertIsInstance(m0.type, RawPointerType)
         self.assertTrue(m0.type.is_cstring)
 
+    def test_cstring_subtype(self):
+        p = blobc.parse_string('''struct foo {
+                __cstring<char>[4] a;
+        }''')
+        self.assertEqual(len(p), 1)
+        self.assertEqual(p[0].name, "foo")
+        self.assertEqual(len(p[0].members), 1)
+        m0 = p[0].members[0]
+        self.assertIsInstance(m0.type, RawArrayType)
+        bt = m0.type.basetype
+        self.assertIsInstance(bt, RawPointerType)
+        self.assertTrue(bt.is_cstring)
+
     def test_const(self):
         p = blobc.parse_string('''
         iconst a = 7;
