@@ -208,9 +208,6 @@ class Parser(object):
         self.error("no matching alternative; have %s but only one of %s is acceptable" %
                 (tokdesc, rules))
 
-    def r_arraydim(self):
-        return self.expect(TOK_INT)
-
     def r_type(self):
         loc = self.tokenizer.loc()
         name = self.expect(TOK_WORD)
@@ -229,7 +226,7 @@ class Parser(object):
             if self.accept(TOK_PUNCT, '*'):
                 t = RawPointerType(t, loc)
             elif self.accept(TOK_PUNCT, '['):
-                dims = self.sep_nonempy_list(self.r_arraydim, ',')
+                dims = self.sep_nonempy_list(self.r_expr, ',')
                 t = RawArrayType(t, dims, loc)
                 self.expect(TOK_PUNCT, ']')
             else:

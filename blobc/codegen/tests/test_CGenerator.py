@@ -89,6 +89,16 @@ class TestCodeGen_C(unittest.TestCase):
             enum { Baz = -1 }; typedef enum { Foo_Bar = -2 } Foo;
         ''')
 
+    def test_array_constant(self):
+        d = self._check('''
+            iconst DIM = 0x1 << 0x8;
+            struct Foo { void*[DIM] Bar; }
+        ''', '''
+            enum { DIM = 256 };
+            struct Foo_TAG;
+            typedef struct Foo_TAG { void* Bar[256]; } Foo;
+        ''')
+
     def test_defprimitive(self):
         d = self._check(stdprim, outprim) 
 

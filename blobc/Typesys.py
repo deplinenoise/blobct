@@ -662,7 +662,8 @@ class TypeSystem(object):
         elif isinstance(t, RawArrayType):
             at = self._resolve_type(t.basetype)
             for dim in t.dims:
-                at = at.array_type(dim, loc)
+                dim_int = dim.eval(self._global_env)
+                at = at.array_type(dim_int, loc)
             return at
         elif t is RawVoidType.instance:
             return VoidType.instance
