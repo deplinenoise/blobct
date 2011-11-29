@@ -9,7 +9,7 @@ defprimitive float float 4;
 
 enum fiskrens {
     A,
-    B = -8,
+    B = 8,
     C,
 }
 

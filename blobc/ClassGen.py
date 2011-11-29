@@ -42,13 +42,7 @@ class StructBase(object):
 
 class EnumValue(object):
     def __init__(self, name, value):
-        self.__name, self.__value = name, value
-
-    def name(self):
-        return self.__name
-
-    def value(self):
-        return self.__value
+        self.name, self.value = name, value
 
     def __str__(self):
         return self.__name
@@ -80,5 +74,4 @@ def generate_classes(typesys, global_dict):
         elif isinstance(t, EnumType):
             impl = EnumImpl(t)
             global_dict[t.name] = impl
-            t.set_impl_object(impl)
 

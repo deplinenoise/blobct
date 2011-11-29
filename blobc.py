@@ -48,43 +48,8 @@ try:
         gencls = languages[args.lang]
         gen = gencls(fh, args.input_fn, aux_fh, args.output_fn)
 
-        # find generator options from the parse tree
-        gen_options = [x for x in parse_tree
-                if isinstance(x, blobc.ParseTree.GeneratorConfig) and
-                x.generator_name == args.lang]
+        gen.generate_code(parse_tree, type_system, merge_imports=args.merge_imports)
 
-        gen.apply_configuration(gen_options)
-
-        gen.start()
-
-        imports = []
-        prims, enums, structs = [], [], []
-
-        if not args.merge_imports:
-            for t in type_system.itertypes():
-                if t.loc.is_import:
-                    if t.loc.filename not in imports:
-                        gen.visit_import(t.loc.filename)
-                        imports.append(t.loc.filename)
-        else:
-            # override import flag
-            for t in type_system.itertypes():
-                t.loc.is_import = False
-
-        for t in type_system.itertypes():
-            if isinstance(t, blobc.Typesys.StructType):
-                gen.visit_struct(t)
-            elif isinstance(t, blobc.Typesys.EnumType):
-                gen.visit_enum(t)
-            elif isinstance(t, blobc.Typesys.PrimitiveType):
-                gen.visit_primitive(t)
-
-        for item in parse_tree:
-            if not isinstance(item, blobc.ParseTree.RawConstant):
-                continue
-            gen.visit_constant(item)
-
-        gen.finish()
     finally:
         if aux_fh is not None:
             aux_fh.close()

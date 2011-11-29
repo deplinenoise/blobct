@@ -9,23 +9,62 @@ class GeneratorBase(object):
 
     def bad_option(self, msg):
         o = self.__curr_option
-        raise blobc.ParseError(o.loc.filename, o.loc.lineno, msg)
+        loc = o.location
+        raise blobc.ParseError(loc.filename, loc.lineno, msg)
 
-    def __apply_config(self, option):
+    def apply_option(self, option):
         name = option.name
         self.__curr_option = option
         method_name = 'configure_' + name
         if not hasattr(self, method_name):
             self.bad_option('"%s": no such generator option' % (name))
         try:
-            getattr(self, method_name)(option.loc, *option.pos_params(), **option.kw_params())
+            method = getattr(self, method_name)
+            method(option.location, *option.pos_params, **option.kw_params)
         except Exception as ex:
             self.bad_option('"%s": %s' % (name, ex))
 
-    def apply_configuration(self, cfg_lines):
-        for line in cfg_lines:
+    def generate_code(self, parse_tree, type_system, merge_imports=False):
+        # find generator options from the parse tree
+        mnemonic = type(self).MNEMONIC
+        gen_options = [x for x in parse_tree
+                         if isinstance(x, blobc.ParseTree.GeneratorConfig) \
+                            and x.generator_name == mnemonic]
+
+        for line in gen_options:
             for option in line.options:
-                self.__apply_config(option)
+                self.apply_option(option)
+
+        self.start()
+
+        imports = []
+        prims, enums, structs = [], [], []
+
+        # optionally drop import information
+        if not merge_imports:
+            for t in type_system.itertypes():
+                loc = t.location
+                if loc.is_import:
+                    if loc.filename not in imports:
+                        self.visit_import(loc.filename)
+                        imports.append(loc.filename)
+        else:
+            # override import flag to pretend everything was local
+            for t in type_system.itertypes():
+                t.location.is_import = False
+        
+        for t in type_system.itertypes():
+            if isinstance(t, blobc.Typesys.StructType):
+                self.visit_struct(t)
+            elif isinstance(t, blobc.Typesys.EnumType):
+                self.visit_enum(t)
+            elif isinstance(t, blobc.Typesys.PrimitiveType):
+                self.visit_primitive(t)
+
+        for name, value, location in type_system.iterconsts():
+            self.visit_constant(name, value, location.is_import)
+
+        self.finish()
 
     def start(self):
         pass

@@ -2,6 +2,8 @@ import blobc
 from . import GeneratorBase
 
 class M68kGenerator(GeneratorBase):
+    MNEMONIC = 'm68k'
+
     def __init__(self, fh, filename, aux_fh, output_fn):
         self.__filename = filename
         self.__targmach = blobc.TargetMachine(pointer_size=4, endian='big')
@@ -9,7 +11,15 @@ class M68kGenerator(GeneratorBase):
         self.__sizeof_suffix = '_SIZE'
         self.__alignof_suffix = '_ALIGN'
         self.__user_literals = []
+        self.__print_comments = True
+        self.__equ_label = 'EQU'
         self.fh = fh
+
+    def configure_no_comments(self, loc):
+        self.__print_comments = False
+
+    def configure_equ_label(self, loc, value):
+        self.__equ_label = str(value)
 
     def configure_include_suffix(self, loc, value):
         self.__include_suffix = str(value)
@@ -25,11 +35,13 @@ class M68kGenerator(GeneratorBase):
         self.__alignof_suffix = str(suffix)
 
     def start(self):
-        self.fh.write('; Generated automatically by blobc.py from %s; do not edit.\n\n' %
+        if self.__print_comments:
+            self.fh.write('; Generated automatically by blobc.py from %s; do not edit.\n\n' %
                 (self.__filename))
 
         if len(self.__user_literals) > 0:
-            self.fh.write('\n; User literals (from "emit")\n')
+            if self.__print_comments:
+                self.fh.write('\n; User literals (from "emit")\n')
             for l in self.__user_literals:
                 self.fh.write(l)
                 self.fh.write('\n')
@@ -38,7 +50,7 @@ class M68kGenerator(GeneratorBase):
     def print_equ(self, label, value):
         self.fh.write(label)
         self.fh.write(' ' * (50 - len(label)))
-        self.fh.write('EQU % 8d\n' % (value))
+        self.fh.write('%s % 8d\n' % (self.__equ_label, value))
 
     def visit_import(self, fn):
         self.fh.write('\t\tINCLUDE "%s%s"\n' % (fn, self.__include_suffix))
@@ -47,31 +59,35 @@ class M68kGenerator(GeneratorBase):
         pass
 
     def visit_enum(self, t):
-        if t.loc.is_import:
+        if t.location.is_import:
             return 
 
-        self.fh.write('\n; enum %s\n' % (t.name))
+        if self.__print_comments:
+            self.fh.write('\n; enum %s\n' % (t.name))
         for m in t.members:
             self.print_equ('%s_%s' % (t.name, m.name), m.value)
 
-    def visit_constant(self, c):
-        if c.loc.is_import:
+    def visit_constant(self, name, value, is_import):
+        if is_import:
             return
-        self.fh.write('\n; constant\n')
-        self.print_equ(c.name, c.value)
+        if self.__print_comments:
+            self.fh.write('\n; constant\n')
+        self.print_equ(name, value)
 
     def visit_struct(self, t):
-        if t.loc.is_import:
+        if t.location.is_import:
             return 
+        sname = t.name
         sz, align = self.__targmach.size_align(t)
-        self.fh.write('\n; struct: %s (size: %d, align: %d)\n' % (t.name, sz, align))
+        if self.__print_comments:
+            self.fh.write('\n; struct: %s (size: %d, align: %d)\n' % (t.name, sz, align))
         for m in t.members:
             name_opt = m.get_options('m68k_name')
             if len(name_opt) > 0:
                 name = str(name_opt[0].pos_param(0))
             else:
-                name = t.name + '_' + m.mname
+                name = sname + '_' + m.mname
             self.print_equ(name, m.offset)
-        self.print_equ(t.name + self.__sizeof_suffix, sz)
-        self.print_equ(t.name + self.__alignof_suffix, align)
+        self.print_equ(sname + self.__sizeof_suffix, sz)
+        self.print_equ(sname + self.__alignof_suffix, align)
 

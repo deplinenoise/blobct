@@ -7,8 +7,9 @@ from ParseTree import *
 SCANNER = re.compile(r'''
   (\s+)                             | # whitespace
   (//)[^\n]*                        | # comments
-  ([+-]?\d+)                        | # integer literals
-  ([][(){}<>=,;:*])                 | # punctuation
+  (\d+)                             | # integer literals
+  (<<|>>)                           | # multi-char punctuation
+  ([][(){}<>=,;:*+-/])              | # punctuation
   ([A-Za-z_][A-Za-z0-9_]*)          | # identifiers
   """(.*?)"""                       | # multi-line string literal
   "((?:[^"\n\\]|\\.)*)"             | # regular string literal
@@ -57,7 +58,7 @@ class Tokenizer(object):
             except StopIteration:
                 return TOK_EOF, None
 
-            space, comment, integer, punct, word, mstringlit, stringlit, badchar = m.groups()
+            space, comment, integer, mpunct, punct, word, mstringlit, stringlit, badchar = m.groups()
 
             if space is not None:
                 self.lineno += space.count('\n')
@@ -71,6 +72,9 @@ class Tokenizer(object):
 
             if comment is not None:
                 continue
+
+            if mpunct is not None:
+                return TOK_PUNCT, mpunct
 
             if punct is not None:
                 return TOK_PUNCT, punct
@@ -107,6 +111,8 @@ class Tokenizer(object):
             else:
                 return 'string literal'
         else:
+            assert t == TOK_PUNCT
+            assert v is not None
             return "'%s'" % (v)
 
     def peek(self):
@@ -123,6 +129,8 @@ class Parser(object):
     def __init__(self, tokenizer):
         object.__init__(self)
         self.tokenizer = tokenizer
+        self.__current_enum_name = None
+        self.__prev_enum_member = None
 
     def error(self, msg):
         raise ParseError(self.tokenizer.filename, self.tokenizer.lineno, msg)
@@ -332,20 +340,32 @@ class Parser(object):
         loc = self.tokenizer.loc()
         name = self.expect(TOK_WORD)
         if self.accept(TOK_PUNCT, '='):
-            value = self.expect(TOK_INT)
+            # the value is initialized, parse an arbitrary expression
+            expr = self.require(self.r_expr)
+        elif self.__prev_enum_member is not None:
+            # express the initializer as the previous field + 1
+            prev_name = self.__prev_enum_member.name
+            expr = RawAddExpr(loc, RawNamedConstantExpr(loc, prev_name), RawIntLiteralExpr(loc, 1))
         else:
-            value = None
-        return RawEnumMember(name, value, loc)
+            # this is the first field, which starts at zero.
+            expr = RawIntLiteralExpr(loc, 0)
+
+        result = RawEnumMember(name, expr, loc)
+        self.__prev_enum_member = result
+        return result
 
     def r_enum(self):
         loc = self.tokenizer.loc()
         if not self.accept(TOK_WORD, 'enum'):
             return None
+
         name = self.expect(TOK_WORD)
+        self.__current_enum_name = name
 
         self.expect(TOK_PUNCT, '{')
 
         members = self.sep_nonempy_list(self.r_enum_member, ',', allow_trailing=True);
+        self.__prev_enum_member = None
 
         self.expect(TOK_PUNCT, '}')
         self.accept(TOK_PUNCT, ';')
@@ -370,13 +390,69 @@ class Parser(object):
         self.accept(TOK_PUNCT, ';')
         return GeneratorConfig(generator_name, options, loc)
 
+    def __binop_expr(self, types, subrule):
+        v = self.require(subrule)
+        while True:
+            loc = self.tokenizer.loc()
+            found = False
+            for t in types:
+                if self.accept(TOK_PUNCT, t.TOKEN):
+                    rhs = self.require(subrule)
+                    v = t(loc, v, rhs)
+                    found = True
+                    break
+            if not found:
+                return v
+
+    def r_primary_expr(self):
+        loc = self.tokenizer.loc()
+        ok, val = self.accept_v(TOK_INT)
+        if ok:
+            return RawIntLiteralExpr(loc, val)
+
+        if self.accept(TOK_PUNCT, '('):
+            val = self.require(self.r_expr)
+            self.expect(TOK_PUNCT, ')')
+            return val
+
+        ok, val = self.accept_v(TOK_WORD)
+        if ok:
+            while self.accept(TOK_PUNCT, '.'):
+                val = val + '.' + self.expect(TOK_WORD)
+            return RawNamedConstantExpr(loc, val)
+
+        if self.accept(TOK_PUNCT, '-'):
+            expr = self.require(self.r_primary_expr)
+            return RawNegateExpr(loc, expr)
+
+        tokdesc = self.tokenizer.describe_here()
+        raise ParseError(
+                loc.filename, loc.lineno,
+                "expected int, (expr), name or -expr at this point, have: " + tokdesc)
+
+    SHIFT_TYPES = (RawShiftLeftExpr, RawShiftRightExpr)
+    ADD_TYPES = (RawAddExpr, RawSubExpr)
+    MUL_TYPES = (RawMulExpr, RawDivExpr)
+
+    def r_shift_expr(self):
+        return self.__binop_expr(Parser.SHIFT_TYPES, self.r_add_expr)
+
+    def r_add_expr(self):
+        return self.__binop_expr(Parser.ADD_TYPES, self.r_mul_expr)
+
+    def r_mul_expr(self):
+        return self.__binop_expr(Parser.MUL_TYPES, self.r_primary_expr)
+
+    def r_expr(self):
+        return self.r_shift_expr()
+
     def r_iconst(self):
         loc = self.tokenizer.loc()
         if not self.accept(TOK_WORD, 'iconst'):
             return None
         name = self.expect(TOK_WORD)
         self.expect(TOK_PUNCT, '=')
-        value = self.expect(TOK_INT)
+        value = self.r_expr()
         self.accept(TOK_PUNCT, ';')
         return RawConstant(name, value, loc)
 

@@ -4,6 +4,7 @@ from . import GeneratorBase, GeneratorException
 import md5
 
 class CGenerator(GeneratorBase):
+    MNEMONIC = 'c'
 
     c_reserved_words = '''
     auto break case char const continue default do double else
@@ -30,13 +31,19 @@ class CGenerator(GeneratorBase):
         self.__obrace = ' {\n'
         self.__struct_suffix = '_TAG'
         self.__ctypename = {}
+        self.__print_separators = True
+        self.__print_guard = True
+        self.__print_inttypes = True
         m = md5.new()
         m.update(self.filename)
         self.guard = 'BLOBC_%s' % (m.hexdigest())
 
     def start(self):
-        self.fh.write('#ifndef %s\n#define %s\n' % (self.guard, self.guard))
-        self.fh.write('\n#include <inttypes.h>\n\n')
+        if self.__print_guard:
+            self.fh.write('#ifndef %s\n#define %s\n' % (self.guard, self.guard))
+
+        if self.__print_inttypes:
+            self.fh.write('\n#include <inttypes.h>\n\n')
 
         if self.aux_fh:
             # create a set of target machines to cover ptr size and alignment variations
@@ -75,6 +82,15 @@ class CGenerator(GeneratorBase):
             self.bad_option("unsupported style '%s'; use one of 'spaces' or 'tabs'" %
                     (style))
 
+    def configure_no_separators(self, loc):
+        self.__print_separators = False
+
+    def configure_no_include_guard(self, loc):
+        self.__print_guard = False
+
+    def configure_no_inttypes(self, loc):
+        self.__print_inttypes = False
+
     def configure_brace_style(self, loc, style):
         if style == 'k&r':
             self.__obrace = ' {\n'
@@ -111,16 +127,16 @@ class CGenerator(GeneratorBase):
 
     def find_prim(self, t):
         if type(t) == blobc.Typesys.FloatingType:
-            if t.size() == 4:
+            if t.size == 4:
                 return 'float'
             else:
                 return 'double'
         elif type(t) == blobc.Typesys.SignedIntType:
-            return 'int%d_t' % (t.size() * 8)
+            return 'int%d_t' % (t.size * 8)
         elif type(t) == blobc.Typesys.UnsignedIntType:
-            return 'uint%d_t' % (t.size() * 8)
+            return 'uint%d_t' % (t.size * 8)
         elif type(t) == blobc.Typesys.CharacterType:
-            size = t.size()
+            size = t.size
             if size == 1:
                 return 'char'
             elif size == 2:
@@ -137,11 +153,11 @@ class CGenerator(GeneratorBase):
         self.__primitives.append(t)
 
     def visit_enum(self, t):
-        if not t.loc.is_import:
+        if not t.location.is_import:
             self.__enums.append(t)
 
     def visit_struct(self, t):
-        if not t.loc.is_import:
+        if not t.location.is_import:
             self.__structs.append(t)
 
     def __visit_struct(self, t):
@@ -158,10 +174,11 @@ class CGenerator(GeneratorBase):
         return cmp(self.__weight_of(a), self.__weight_of(b))
 
     def __separator(self, tag):
-        l = len(tag)
-        left = 70 / 2 - l / 2
-        right = 70 - l - left
-        self.fh.write('\n/*%s %s %s*/\n\n' % ('-' * left, tag, '-' * right))
+        if self.__print_separators:
+            l = len(tag)
+            left = 70 / 2 - l / 2
+            right = 70 - l - left
+            self.fh.write('\n/*%s %s %s*/\n\n' % ('-' * left, tag, '-' * right))
 
     def __emit_imports(self):
         if len(self.__imports) == 0:
@@ -177,10 +194,10 @@ class CGenerator(GeneratorBase):
         self.__separator('primitives')
 
         for t in self.__primitives:
-            if not t.is_external():
+            if not t.is_external:
                 prim_name = self.find_prim(t)
                 if prim_name != t.name:
-                    if not t.loc.is_import:
+                    if not t.location.is_import:
                         self.fh.write('typedef %s %s;\n' % (prim_name, self.ctypename(t)))
                     else:
                         self.ctypename(t)
@@ -198,9 +215,9 @@ class CGenerator(GeneratorBase):
 
         self.fh.write('enum%s' % (self.__obrace))
         for x in xrange(0, len(self.__constants)):
-            c = self.__constants[x]
+            name, value = self.__constants[x]
             self.fh.write('%s%s = %d%s\n' % 
-                    (self.__indent, c.name, c.value,
+                    (self.__indent, name, value,
                      ', ' if (x + 1) < len(self.__constants) else ''))
         self.fh.write('};\n')
 
@@ -227,11 +244,11 @@ class CGenerator(GeneratorBase):
 
         for t in self.__enums:
             self.fh.write('typedef enum%s' % (self.__obrace))
-            first = True
-            for x in xrange(0, len(t.members)):
+            mcount = len(t.members)
+            for x in xrange(0, mcount):
                 m = t.members[x]
                 self.fh.write('%s%s_%s = %d' % (self.__indent, t.name, m.name, m.value))
-                if x < len(t.members) - 1:
+                if x + 1 < mcount:
                     self.fh.write(',');
                 self.fh.write('\n')
             self.fh.write('} %s;\n' % (t.name))
@@ -243,7 +260,7 @@ class CGenerator(GeneratorBase):
         self.__separator('structs')
 
         for t in self.__struct_order_list:
-            if t.loc.is_import:
+            if t.location.is_import:
                 continue
             self.fh.write('\ntypedef struct %s%s%s' % (t.name, self.__struct_suffix, self.__obrace))
             for m in t.members:
@@ -271,24 +288,26 @@ class CGenerator(GeneratorBase):
         self.__emit_enums()
         self.__emit_structs()
 
-        self.fh.write('\n#endif\n')
+        if self.__print_guard:
+            self.fh.write('\n#endif\n')
 
         aux = self.aux_fh
         if not aux:
             return
 
         for t in self.__structs:
-            if t.loc.is_import:
+            if t.location.is_import:
                 continue
+            name = t.name
             sizes = [(tm, tm.size_align(t)) for tm in self.__tms]
-            aux.write('typedef char __sizecheck_%s [\n' % (t.name))
+            aux.write('typedef char __sizecheck_%s [\n' % (name))
             for tm, (size, align) in sizes:
                 aux.write('(sizeof(void*) == %d && ALIGNOF(void*) == %d && \n' % (
-                    tm.pointer_size(), tm.pointer_align()))
+                    tm.pointer_size, tm.pointer_align))
                 aux.write(' sizeof(%s) == %d && ALIGNOF(%s) == %d) ? 1 :\n' %
-                    (t.name, size, t.name, align))
+                    (name, size, name, align))
             aux.write('-1];\n')
 
-    def visit_constant(self, c):
-        if not c.loc.is_import:
-            self.__constants.append(c)
+    def visit_constant(self, name, value, is_import):
+        if not is_import:
+            self.__constants.append((name, value))
