@@ -246,3 +246,26 @@ class TestCodeGen_C(unittest.TestCase):
             typedef struct Foo_TAG { struct SomeOtherType* Frob; } Foo;
         ''')
 
+    def test_struct_containment(self):
+        d = self._check(stdprim + '''
+            struct Foo {
+                Bar a;
+                Baz b;
+            };
+            struct Bar {
+                Baz a;
+                u32 b;
+            };
+            struct Baz {
+                u32 a;
+                u32 b;
+            };
+        ''', outprim + '''
+            struct Baz_TAG;
+            struct Bar_TAG;
+            struct Foo_TAG;
+            typedef struct Baz_TAG { u32 a; u32 b; } Baz;
+            typedef struct Bar_TAG { struct Baz_TAG a; u32 b; } Bar;
+            typedef struct Foo_TAG { struct Bar_TAG a; struct Baz_TAG b; } Foo;
+        ''')
+
