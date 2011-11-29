@@ -84,7 +84,7 @@ class M68kGenerator(GeneratorBase):
         for m in t.members:
             name_opt = m.get_options('m68k_name')
             if len(name_opt) > 0:
-                name = str(name_opt[0].pos_param(0))
+                name = str(name_opt[0].pos_params[0])
             else:
                 name = sname + '_' + m.mname
             self.print_equ(name, m.offset)

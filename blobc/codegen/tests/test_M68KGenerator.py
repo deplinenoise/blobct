@@ -107,3 +107,14 @@ class TestCodeGen_M68K(unittest.TestCase):
             Foo_SIZE equ 24 
             Foo_ALIGN equ 4 
         ''')
+
+    def test_field_rename(self):
+        d = self._check(stdprim + '''
+            struct Foo {
+                u32[1,2,3] Bar : m68k_name("Qux");
+            };
+        ''', '''
+            Qux equ 0
+            Foo_SIZE equ 24 
+            Foo_ALIGN equ 4 
+        ''')
