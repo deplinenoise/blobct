@@ -476,7 +476,7 @@ class DefaultImportHandler:
         self._dirs = dirs
 
     def get_import_contents(self, fn):
-        with open(fn, 'r') as fn:
+        with open(fn, 'r') as f:
             return f.read()
 
     def find_imported_file(self, fn):
