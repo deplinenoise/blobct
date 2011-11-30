@@ -8,6 +8,8 @@ iconst BarConst = -1;
 
 import "testdata/other_file"
 
+generator c : enable_reflection;
+
 // Comments working
 
 struct moo {

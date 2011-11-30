@@ -34,6 +34,7 @@ class CGenerator(GeneratorBase):
         self._print_separators = True
         self._print_guard = True
         self._print_inttypes = True
+        self._enable_reflection = False
         m = md5.new()
         m.update(self.filename)
         self.guard = 'BLOBC_%s' % (m.hexdigest())
@@ -60,11 +61,14 @@ class CGenerator(GeneratorBase):
             self.aux_fh.write('#if defined(__GNUC__) || defined(_MSC_VER)\n')
             self.aux_fh.write('#define ALIGNOF(x) __alignof(x)\n')
             self.aux_fh.write('#elif defined(AMIGA)\n')
-            self.aux_fh.write('#define ALIGNOF(x) 4\n')
+            self.aux_fh.write('#define ALIGNOF(x) (sizeof(x) >= 4 ? 4 : sizeof(x))\n')
             self.aux_fh.write('#else\n')
             self.aux_fh.write('#error please define ALIGNOF for your compiler\n')
             self.aux_fh.write('#endif\n')
             self.aux_fh.write('#endif\n\n')
+
+    def configure_enable_reflection(self, loc):
+        self._enable_reflection = True
 
     def configure_emit(self, loc, *text):
         if not loc.is_import:
@@ -108,6 +112,22 @@ class CGenerator(GeneratorBase):
                 n = t.name
             self._ctypename[t] = n
         return n
+
+    def refnode_name(self, t):
+        if isinstance(t, blobc.Typesys.StructType):
+            return self.ctypename(t)
+        elif isinstance(t, blobc.Typesys.ArrayType):
+            return '%s_array%d' % (self.refnode_name(t.base_type), t.dim)
+        elif isinstance(t, blobc.Typesys.PointerType):
+            return '%s_ptr' % (self.refnode_name(t.base_type))
+        elif isinstance(t, blobc.Typesys.PrimitiveType):
+            return '%s' % (self.ctypename(t))
+        elif t is blobc.Typesys.VoidType.instance:
+            return 'void'
+        elif isinstance(t, blobc.Typesys.EnumType):
+            return t.name
+        else:
+            raise GeneratorException("type %s not supported" % (str(t)))
 
     def vardef(self, t, var):
         if isinstance(t, blobc.Typesys.StructType):
@@ -196,19 +216,20 @@ class CGenerator(GeneratorBase):
         self._separator('primitives')
 
         for t in self._primitives:
-            if not t.is_external:
-                prim_name = self.find_prim(t)
-                if prim_name != t.name:
-                    if not t.location.is_import:
-                        self.fh.write('typedef %s %s;\n' % (prim_name, self.ctypename(t)))
-                    else:
-                        self.ctypename(t)
-                else:
-                    # map e.g. char -> char
-                    self._ctypename[t] = prim_name
-            else:
+            if t.is_external:
                 self._ctypename[t] = t.name
+                continue
 
+            prim_name = self.find_prim(t)
+            if prim_name != t.name:
+                if not t.location.is_import:
+                    self.fh.write('typedef %s %s;\n' % (prim_name, self.ctypename(t)))
+                else:
+                    self.ctypename(t)
+            else:
+                # map e.g. char -> char
+                self._ctypename[t] = prim_name
+            
     def _emit_constants(self):
         if len(self._constants) == 0:
             return
@@ -275,6 +296,150 @@ class CGenerator(GeneratorBase):
                 self.fh.write(';\n');
             self.fh.write('} %s;\n' % (t.name))
 
+    _primmap = {
+        blobc.Typesys.UnsignedIntType: 'BCT_UNSIGNED',
+        blobc.Typesys.SignedIntType: 'BCT_SIGNED',
+        blobc.Typesys.FloatingType: 'BCT_FLOAT',
+        blobc.Typesys.CharacterType: 'BCT_CHAR',
+    }
+    
+    def _indent_aux(self, str):
+        self.aux_fh.write(self._indent)
+        self.aux_fh.write(str)
+
+    def _emit_ref_primitive(self, t, pclass):
+        self._emit_ref_data(t, 'BCT_PRIMITIVE', pclass=pclass, size=t.size, align=t.size)
+
+    def _emit_ref_unsigned(self, t):
+        self._emit_ref_primitive(t, 'BCT_UNSIGNED')
+
+    def _emit_ref_signed(self, t):
+        self._emit_ref_primitive(t, 'BCT_SIGNED')
+
+    def _emit_ref_char(self, t):
+        self._emit_ref_primitive(t, 'BCT_CHAR')
+
+    def _emit_ref_floating(self, t):
+        self._emit_ref_primitive(t, 'BCT_FLOAT')
+
+    def _emit_ref_struct(self, t):
+        aux = self.aux_fh
+        aux.write('static const struct bct_member bct_members_%s_[] =%s' % (t.name, self._obrace))
+        for x in xrange(0, len(t.members)):
+            m = t.members[x]
+            comma = ',' if x + 1 < len(t.members) else ''
+            self._indent_aux('{ "%s", offsetof(%s, %s), &bct_typenode_%s_ }%s\n' % \
+                    (m.mname, t.name, m.mname, self.refnode_name(m.mtype), comma))
+        aux.write('};\n\n')
+        self._emit_ref_data(t, 'BCT_STRUCT')
+
+    def _emit_ref_pointer(self, t):
+        self._emit_ref_data(t, 'BCT_POINTER')
+
+    def _emit_ref_cstring(self, t):
+        self._emit_ref_data(t, 'BCT_CSTRING')
+
+    def _emit_ref_array(self, t):
+        self._emit_ref_data(t, 'BCT_ARRAY')
+
+    def _emit_ref_data(self, t, metatype, pclass='BCT_NONE', size=0, align=0):
+        c_name = self.vardef(t, '')
+        n = self.refnode_name(t)
+        i = self._indent_aux
+        if metatype != 'BCT_STRUCT' and metatype != 'BCT_PRIMITIVE':
+            self.aux_fh.write('static ');
+        self.aux_fh.write('const struct bct_typenode bct_typenode_%s_ =%s' % (n, self._obrace))
+        i('%s,\n' % (metatype))
+        i('%s,\n' % (pclass))
+        i('%d,\n' % (size))
+        i('%d,\n' % (align))
+        i('sizeof(%s),\n' % (c_name))
+        i('ALIGNOF(%s),\n' % (c_name))
+        if metatype == 'BCT_STRUCT':
+            i('%d,\n' % (len(t.members)))
+            i('&bct_members_%s_,\n' % (n))
+        elif metatype == 'BCT_ARRAY':
+            i('%d,\n' % (t.dim))
+            i('&bct_typenode_%s_,\n' % (self.refnode_name(t.base_type)))
+        elif metatype == 'BCT_POINTER':
+            i('0,\n')
+            i('&bct_typenode_%s_,\n' % (self.refnode_name(t.base_type)))
+        else:
+            i('0,\n')
+            i('NULL,\n')
+        i('"%s",\n' % (c_name))
+        self.aux_fh.write('};\n')
+
+    _refdispatch = {
+        blobc.Typesys.UnsignedIntType: _emit_ref_unsigned,
+        blobc.Typesys.SignedIntType: _emit_ref_signed,
+        blobc.Typesys.FloatingType: _emit_ref_floating,
+        blobc.Typesys.CharacterType: _emit_ref_char,
+        blobc.Typesys.PointerType: _emit_ref_pointer,
+        blobc.Typesys.CStringType: _emit_ref_cstring,
+        blobc.Typesys.ArrayType: _emit_ref_array,
+        blobc.Typesys.StructType: _emit_ref_struct,
+    }
+
+    def _emit_reflection_data(self, t):
+        func = CGenerator._refdispatch[type(t)]
+        func(self, t)
+
+    def _visit_type_for_reflection(self, t, typehash, typelist):
+        if t.location.is_import:
+            return
+        if typehash.has_key(t):
+            return
+        typehash[t] = True
+
+        if isinstance(t, blobc.Typesys.StructType):
+            for m in t.members:
+                self._visit_type_for_reflection(m.mtype, typehash, typelist)
+            typelist.append(t)
+        elif isinstance(t, blobc.Typesys.ArrayType):
+            self._visit_type_for_reflection(t.base_type, typehash, typelist)
+            typelist.append(t)
+        elif isinstance(t, blobc.Typesys.PointerType):
+            self._visit_type_for_reflection(t.base_type, typehash, typelist)
+            typelist.append(t)
+        elif isinstance(t, blobc.Typesys.PrimitiveType):
+            typelist.append(t)
+        elif t is blobc.Typesys.VoidType.instance:
+            typelist.append(t)
+        elif isinstance(t, blobc.Typesys.EnumType):
+            typelist.append(t)
+        else:
+            assert False
+
+    def _type_dependency_order(self):
+        typehash = {}
+        typelist = []
+        for t in self._primitives:
+            self._visit_type_for_reflection(t, typehash, typelist)
+        for t in self._structs:
+            self._visit_type_for_reflection(t, typehash, typelist)
+        return typelist
+
+    def _emit_reflection(self):
+        self._separator('reflection info')
+        fh = self.fh
+        aux = self.aux_fh
+        fh.write('struct bct_typenode;\n')
+        fh.write('struct bct_member;\n')
+        if aux:
+            aux.write('#include "blobct.h"\n')
+
+        primmap = CGenerator._primmap
+
+        for t in self._type_dependency_order():
+            if hasattr(t, 'name'):
+                n = t.name
+                fh.write('extern const struct bct_typenode bct_typenode_%s_;\n' % (n))
+            if not aux:
+                continue
+            self._emit_reflection_data(t)
+
+
     def finish(self):
         # Sort structs in complexity order so later structs can embed eariler structs.
         for t in self._structs:
@@ -289,6 +454,9 @@ class CGenerator(GeneratorBase):
         self._emit_user_literals()
         self._emit_enums()
         self._emit_structs()
+
+        if self._enable_reflection:
+            self._emit_reflection()
 
         if self._print_guard:
             self.fh.write('\n#endif\n')
