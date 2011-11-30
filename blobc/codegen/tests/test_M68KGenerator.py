@@ -4,7 +4,7 @@ import unittest
 import blobc
 from blobc.Typesys import TypeSystemException
 from blobc.codegen import M68kGenerator
-from blobc.codegen.tests.util import compress_c
+from blobc.codegen.tests.util import *
 from cStringIO import StringIO
 
 stdprim = '''
@@ -15,44 +15,24 @@ stdprim = '''
 '''
 
 class TestCodeGen_M68K(unittest.TestCase):
+    class Driver(CodegenTestDriver):
+        def _apply_options(self, stream, kwargs):
+            if not kwargs.get('comments', False):
+                stream.write('generator m68k : no_comments;\n')
 
-    class ImportHandler:
-        def __init__(self, files):
-            self._files = files
-        def get_import_contents(self, fn):
-            return self._files[fn]
-        def find_imported_file(self, fn):
-            return fn if self._files.has_key(fn) else None
-
-    class Data:
-        def __init__(self, src, **kws):
-            imports = kws.get('imports', {})
-            if kws.get('comments', False) == False:
-                src = 'generator m68k : no_comments;\n' + src
-
-            equ_label = kws.get('equ_label', 'equ')
+            equ_label = kwargs.get('equ_label', 'equ')
             if equ_label != 'EQU':
-                src = ('generator m68k : equ_label("%s");\n' % (equ_label)) + src
-                
-            imports['<string>'] = src
-            self.parse_tree = blobc.parse_file(
-                    '<string>', handle_imports=True,
-                    import_handler=TestCodeGen_M68K.ImportHandler(imports))
-            self.tsys = blobc.compile_types(self.parse_tree)
-            out_fh = StringIO()
-            aux_fh = StringIO()
-            self.gen = M68kGenerator(out_fh, 'input.blob', aux_fh, 'output.h')
-            self.gen.generate_code(self.parse_tree, self.tsys)
-            self.output = compress_c(out_fh.getvalue())
-            self.aux_output = compress_c(aux_fh.getvalue())
+                stream.write('generator m68k : equ_label("%s");\n' % (equ_label))
 
-    def _check(self, src, expected, **kws):
-        d = type(self).Data(src, **kws)
-        self.assertEqual(compress_c(expected), d.output)
+    _driver = Driver(M68kGenerator)
 
-    def _get_output(self, src, **kws):
-        d = type(self).Data(src, **kws)
+    def _get_output(self, src, **kwargs):
+        d = type(self)._driver.run(src, kwargs)
         return d.output
+
+    def _check(self, src, expected, **kwargs):
+        d = type(self)._driver.run(src, kwargs)
+        self.assertEqual(compress_c(expected), d.output)
 
     def test_constant1(self):
         d = self._check('''iconst foo = 7;''', '''foo equ 7''')
