@@ -49,7 +49,10 @@ class CodegenTestDriver(object):
         aux_fh = StringIO()
         gen = self._gen_cls(out_fh, 'input.blob', aux_fh, 'output.h')
         gen.generate_code(result.parse_tree, result.tsys)
-        result.output = compress_c(out_fh.getvalue())
-        result.aux_output = compress_c(aux_fh.getvalue())
+        result.output = out_fh.getvalue()
+        result.aux_output = aux_fh.getvalue()
+        if not kwargs.get('keep_ws', False):
+            result.output = compress_c(result.output)
+            result.aux_output = compress_c(result.aux_output)
         return result
 

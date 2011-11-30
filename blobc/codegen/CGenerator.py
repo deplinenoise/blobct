@@ -34,6 +34,7 @@ class CGenerator(GeneratorBase):
         self._print_separators = True
         self._print_guard = True
         self._print_inttypes = True
+        self._print_includes = True
         m = md5.new()
         m.update(self.filename)
         self.guard = 'BLOBC_%s' % (m.hexdigest())
@@ -81,6 +82,9 @@ class CGenerator(GeneratorBase):
         else:
             self.bad_option("unsupported style '%s'; use one of 'spaces' or 'tabs'" %
                     (style))
+
+    def configure_no_includes(self, loc):
+        self._print_includes = False
 
     def configure_no_separators(self, loc):
         self._print_separators = False
@@ -183,7 +187,7 @@ class CGenerator(GeneratorBase):
             self.fh.write('\n/*%s %s %s*/\n\n' % ('-' * left, tag, '-' * right))
 
     def _emit_imports(self):
-        if len(self._imports) == 0:
+        if len(self._imports) == 0 or not self._print_includes:
             return
         self._separator('imports')
         for filename in self._imports:
@@ -231,7 +235,7 @@ class CGenerator(GeneratorBase):
             self.fh.write('struct %s%s;\n' % (t.name, self._struct_suffix))
 
     def _emit_user_literals(self):
-        if len(self._structs) == 0:
+        if len(self._user_literals) == 0:
             return
         self._separator('user literals')
         for t in self._user_literals:

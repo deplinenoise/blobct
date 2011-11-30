@@ -18,11 +18,31 @@ stock_primitives_gen = '''
     typedef float f32; typedef double f64;
 '''
 
+one_of_each = '''
+    iconst Baz = 8;
+    enum Bar { A, B, C }
+    struct Frob {
+        u32 Member;
+    }
+    struct Foo {
+        Bar Barbie;
+        Bar[1] BarbieArray;
+        void*[1] VoidArray;
+        Bar* BarPtr;
+        Frob* FromPtr;
+        Frob*[Baz] FrobPtrArray;
+        Frob[Baz] FrobArray;
+        Frob FromMember;
+    }
+'''
+
 class TestCodeGen_C(unittest.TestCase):
     class Driver(CodegenTestDriver):
         def _apply_options(self, stream, kwargs):
             if not kwargs.get('no_primitives', False):
                 stream.write(stock_primitives)
+            if not kwargs.get('print_includes', True):
+                stream.write('generator c : no_includes\n;')
             if not kwargs.get('separators', False):
                 stream.write('generator c : no_separators;\n')
             if not kwargs.get('include_guard', False):
@@ -33,34 +53,41 @@ class TestCodeGen_C(unittest.TestCase):
     _driver = Driver(CGenerator)
 
     def _compile(self, src, **kwargs):
-        type(self)._driver.run(src, kwargs)
+        d = type(self)._driver.run(src, kwargs)
+        return d.output
 
     def _check(self, src, expected, **kwargs):
         d = type(self)._driver.run(src, kwargs)
+        hdrs = ''
+        for inc in kwargs.get('expect_includes', ()):
+            hdrs = hdrs + '#include ' + inc + '\n'
         if not kwargs.get('no_primitives', False):
             expected = stock_primitives_gen + ' ' +  expected
-        self.assertEqual(compress_c(expected), d.output)
+        expected = hdrs + expected
+        if not kwargs.get('keep_ws', False):
+            expected = compress_c(expected)
+        self.assertEqual(d.output, expected)
 
     def test_constant1(self):
-        d = self._check('''iconst foo = 7;''', ''' enum { foo = 7 }; ''')
+        self._check('''iconst foo = 7;''', ''' enum { foo = 7 }; ''')
 
     def test_constant2(self):
-        d = self._check('''iconst foo = 7 + 9;''', ''' enum { foo = 16 }; ''')
+        self._check('''iconst foo = 7 + 9;''', ''' enum { foo = 16 }; ''')
 
     def test_constant3(self):
-        d = self._check('''iconst foo = 7 / 9;''', ''' enum { foo = 0 }; ''')
+        self._check('''iconst foo = 7 / 9;''', ''' enum { foo = 0 }; ''')
 
     def test_constant4(self):
-        d = self._check('''iconst foo = 1 << 8;''', ''' enum { foo = 256 }; ''')
+        self._check('''iconst foo = 1 << 8;''', ''' enum { foo = 256 }; ''')
 
     def test_constant5(self):
-        d = self._check('''iconst foo = 1 << 8 + 1;''', ''' enum { foo = 512 }; ''')
+        self._check('''iconst foo = 1 << 8 + 1;''', ''' enum { foo = 512 }; ''')
 
     def test_constant6(self):
-        d = self._check('''iconst foo = (1 << 8) + 1;''', ''' enum { foo = 257 }; ''')
+        self._check('''iconst foo = (1 << 8) + 1;''', ''' enum { foo = 257 }; ''')
 
     def test_constant7(self):
-        d = self._check('''
+        self._check('''
             iconst foo = 17;
             iconst bar = 10 * foo;
         ''', '''
@@ -68,7 +95,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_constant8(self):
-        d = self._check('''
+        self._check('''
             iconst foo = 17;
             iconst bar = 10 * foo;
             iconst baz = (10 * foo - bar + 1) * 2;
@@ -77,7 +104,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_constant_enumref(self):
-        d = self._check('''
+        self._check('''
             enum Foo { Bar = 10 };
             iconst Baz = Foo.Bar + 1;
         ''', '''
@@ -85,7 +112,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_constant_constref(self):
-        d = self._check('''
+        self._check('''
             iconst Baz = -1;
             enum Foo { Bar = Baz * 2 };
         ''', '''
@@ -93,7 +120,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_array_constant(self):
-        d = self._check('''
+        self._check('''
             iconst DIM = 0x1 << 0x8;
             struct Foo { void*[DIM] Bar; }
         ''', '''
@@ -103,24 +130,24 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_defprimitive(self):
-        d = self._check('', '') 
+        self._check('', '') 
 
     def test_defprimitive_alias(self):
         '''Check "float" maps directly to "float" when matching'''
-        d = self._check('''
+        self._check('''
             defprimitive float float 4;
         ''', ''' ''')
 
     def test_defprimitive_alias_conflict(self):
         '''Check "float" is wrapped when not when not matching'''
-        d = self._check('''
+        self._check('''
             defprimitive float float 8;
         ''', '''
             typedef double blobc_c_wrap_float;
         ''')
 
     def test_struct_empty(self):
-        d = self._check('''
+        self._check('''
             struct Foo { };
         ''', '''
             struct Foo_TAG;
@@ -128,7 +155,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_struct_single_member(self):
-        d = self._check('''
+        self._check('''
             struct Foo {
                 u32 Bar;
             };
@@ -138,7 +165,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_struct_tag_option_empty(self):
-        d = self._check('''
+        self._check('''
             generator c : struct_suffix("")
             struct Foo {
                 u32 Bar;
@@ -149,7 +176,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_struct_tag_option(self):
-        d = self._check('''
+        self._check('''
             generator c : struct_suffix("^^^")
             struct Foo {
                 u32 Bar;
@@ -190,7 +217,7 @@ class TestCodeGen_C(unittest.TestCase):
             ''')
 
     def test_array_simple(self):
-        d = self._check('''
+        self._check('''
             struct Foo {
                 u32[7] Bar;
             };
@@ -200,7 +227,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_array_multi(self):
-        d = self._check('''
+        self._check('''
             struct Foo {
                 u32[1,2,3] Bar;
             };
@@ -210,7 +237,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_array_ptr(self):
-        d = self._check('''
+        self._check('''
             struct Foo {
                 u32**[2] Bar;
             };
@@ -220,7 +247,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_cstring(self):
-        d = self._check('''
+        self._check('''
             struct Foo {
                 __cstring<char> Bar;
             };
@@ -230,7 +257,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_cstring_ptr(self):
-        d = self._check('''
+        self._check('''
             struct Foo {
                 __cstring<char>* Bar;
             };
@@ -240,7 +267,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_cstring_array(self):
-        d = self._check('''
+        self._check('''
             struct Foo {
                 __cstring<char>[20] Bar;
             };
@@ -250,7 +277,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_cdecl_option(self):
-        d = self._check('''
+        self._check('''
             struct Foo {
                 void* Bar : c_decl("struct SomeOtherType* Frob");
             };
@@ -260,7 +287,7 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_struct_containment(self):
-        d = self._check('''
+        self._check('''
             struct Baz {
                 u32 a;
                 u32 b;
@@ -281,75 +308,53 @@ class TestCodeGen_C(unittest.TestCase):
         ''')
 
     def test_indent_spaces(self):
-        self._compile('''
-            generator c : indent_style("spaces");
-            iconst Baz = 8;
-            enum Bar { A }
-            struct Foo {
-                Bar Barbie;
-            };
-        ''')
+        out = self._compile(one_of_each + ' generator c : indent_style("spaces");', keep_ws=True)
+        self.assertTrue(out.find('\t') == -1)
 
     def test_indent_tabs(self):
-        self._compile('''
-            generator c : indent_style("tabs");
-            iconst Baz = 8;
-            enum Bar { A, B }
-            struct Foo {
-                Bar Barbie;
-            };
-        ''')
+        out = self._compile(one_of_each + ' generator c : indent_style("tabs");', keep_ws=True)
+        self.assertTrue(out.find('    ') == -1)
 
     def test_bad_indent(self):
         with self.assertRaises(blobc.ParseError):
-            self._compile('''
-                generator c : indent_style("both");
-                iconst Baz = 8;
-                enum Bar { A }
-                struct Foo {
-                    Bar Barbie;
-                };
-            ''')
-
+            self._compile(one_of_each + ' generator c : indent_style("both");')
 
     def test_brace_k_r(self):
-        self._compile('''
-            generator c : brace_style("k&r");
-            iconst Baz = 8;
-            enum Bar { A }
-            struct Foo {
-                Bar Barbie;
-            };
-        ''')
+        self._compile(one_of_each + ' generator c : brace_style("k&r");', keep_ws=True)
 
     def test_brace_newline(self):
-        self._compile('''
-            generator c : brace_style("newline");
-            iconst Baz = 8;
-            enum Bar { A }
-            struct Foo {
-                Bar Barbie;
-            };
-        ''')
+        self._compile(one_of_each + ' generator c : brace_style("newline");', keep_ws=True)
 
     def test_bad_brace(self):
         with self.assertRaises(blobc.ParseError):
-            self._compile('''
-                generator c : brace_style("both");
-                iconst Baz = 8;
-                enum Bar { A }
-                struct Foo {
-                    Bar Barbie;
-                };
-            ''')
+            self._compile(one_of_each + ' generator c : brace_style("something else");', keep_ws=True)
 
-    def test_guards(self):
-        with self.assertRaises(blobc.ParseError):
-            self._compile('''
-                generator c : brace_style("both");
-                iconst Baz = 8;
-                enum Bar { A }
-                struct Foo {
-                    Bar Barbie;
-                };
-            ''')
+    def test_emit_user_literals(self):
+        self._check('generator c : emit("should print");', 'should print', no_primitives=True)
+
+    def test_dont_emit_imported_user_literals(self):
+        self._check('import "foo";', '', imports={
+            'foo': 'generator c : emit("should not print");'
+        })
+
+    def test_include_imports(self):
+        self._check('import "foo";', '', imports={
+            'foo': 'iconst a = 7;'
+        }, expect_includes=['"foo.h"'])
+
+    def test_dont_emit_imported_struct(self):
+        self._check('import "foo";', '', imports={
+            'foo': 'struct Foo { u32 Field; };'
+        }, print_includes=False)
+
+    def test_include_guard(self):
+        out = self._compile('',include_guard=True, no_primitives=True)
+        self.assertTrue(out.find('#ifndef') != -1)
+        self.assertTrue(out.find('#define') != -1)
+        self.assertTrue(out.find('#endif') != -1)
+
+    def test_separators(self):
+        out = self._compile('',include_guard=True, no_primitives=True)
+        self.assertTrue(out.find('#ifndef') != -1)
+        self.assertTrue(out.find('#define') != -1)
+        self.assertTrue(out.find('#endif') != -1)
