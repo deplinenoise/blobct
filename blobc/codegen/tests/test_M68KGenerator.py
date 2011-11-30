@@ -15,10 +15,29 @@ stdprim = '''
 '''
 
 class TestCodeGen_M68K(unittest.TestCase):
+
+    class ImportHandler:
+        def __init__(self, files):
+            self._files = files
+        def get_import_contents(self, fn):
+            return self._files[fn]
+        def find_imported_file(self, fn):
+            return fn if self._files.has_key(fn) else None
+
     class Data:
-        def __init__(self, src):
-            src = 'generator m68k : no_comments, equ_label("equ");\n' + src
-            self.parse_tree = blobc.parse_string(src)
+        def __init__(self, src, **kws):
+            imports = kws.get('imports', {})
+            if kws.get('comments', False) == False:
+                src = 'generator m68k : no_comments;\n' + src
+
+            equ_label = kws.get('equ_label', 'equ')
+            if equ_label != 'EQU':
+                src = ('generator m68k : equ_label("%s");\n' % (equ_label)) + src
+                
+            imports['<string>'] = src
+            self.parse_tree = blobc.parse_file(
+                    '<string>', handle_imports=True,
+                    import_handler=TestCodeGen_M68K.ImportHandler(imports))
             self.tsys = blobc.compile_types(self.parse_tree)
             out_fh = StringIO()
             aux_fh = StringIO()
@@ -27,12 +46,13 @@ class TestCodeGen_M68K(unittest.TestCase):
             self.output = compress_c(out_fh.getvalue())
             self.aux_output = compress_c(aux_fh.getvalue())
 
-    def _compile(self, src):
-        type(self).Data(sr)
-
-    def _check(self, src, expected):
-        d = type(self).Data(src)
+    def _check(self, src, expected, **kws):
+        d = type(self).Data(src, **kws)
         self.assertEqual(compress_c(expected), d.output)
+
+    def _get_output(self, src, **kws):
+        d = type(self).Data(src, **kws)
+        return d.output
 
     def test_constant1(self):
         d = self._check('''iconst foo = 7;''', '''foo equ 7''')
@@ -46,6 +66,9 @@ class TestCodeGen_M68K(unittest.TestCase):
     def test_constant4(self):
         d = self._check('''iconst foo = 1 << 8;''', '''foo equ 256''')
 
+    def test_constant4_1(self):
+        d = self._check('''iconst foo = 256 >> 8;''', '''foo equ 1''')
+
     def test_constant5(self):
         d = self._check('''
             iconst foo = 17;
@@ -53,6 +76,35 @@ class TestCodeGen_M68K(unittest.TestCase):
         ''', '''
             foo equ 17
             bar equ 170
+        ''')
+ 
+    def test_imported_data(self):
+        d = self._check('''
+            import "imports.blob";
+        ''', '''
+            INCLUDE "imports.blob.i"
+        ''', imports = {
+            'imports.blob' : '''
+                enum A { B = 0, C = 77 };
+                struct B { A a; }
+                '''
+        })
+
+    def test_comments(self):
+        d = self._get_output('''
+            generator m68k : emit("foo");
+            enum A { B = 0, C = 77 };
+            struct B { A a; }
+            iconst C = A.B;
+        ''', comments=True)
+        self.assertNotEqual(d.find(';'), -1)
+
+    def test_enum(self):
+        d = self._check('''
+            enum A { B = 0, C = 77 };
+        ''', '''
+            A_B equ 0
+            A_C equ 77
         ''')
 
     def test_struct_empty(self):
@@ -118,3 +170,70 @@ class TestCodeGen_M68K(unittest.TestCase):
             Foo_SIZE equ 24 
             Foo_ALIGN equ 4 
         ''')
+
+    def test_import(self):
+        d = self._check('''
+            import "Foo.blob";
+        ''', '''
+            INCLUDE "Foo.blob.i"
+        ''', imports={
+            'Foo.blob': 'iconst a = 7;',
+        })
+
+    def test_import_suffix(self):
+        d = self._check('''
+            generator m68k : include_suffix(".fisk");
+            import "Foo.blob";
+        ''', '''
+            INCLUDE "Foo.blob.fisk"
+        ''', imports={
+            'Foo.blob': 'iconst a = 7;\n',
+        })
+
+    def test_missing_import(self):
+        with self.assertRaises(blobc.ParseError):
+            d = self._check('''
+                import "missing_file.blob";
+            ''', '''''')
+
+    def test_user_emit(self):
+        d = self._check('''
+            generator m68k : emit("blah");
+        ''', '''
+            blah
+        ''')
+
+    def test_user_emit_multiline(self):
+        d = self._check('''
+            generator m68k : emit("""
+                blah
+                blah
+            """);
+        ''', '''
+            blah blah
+        ''')
+
+    def test_bad_token(self):
+        with self.assertRaises(blobc.ParseError):
+            d = self._get_output('''
+            ^
+            ''')
+
+    def test_bad_option(self):
+        with self.assertRaises(blobc.ParseError):
+            d = self._get_output('''
+                generator m68k : nonexisting_option("blah");
+            ''')
+
+    def test_bad_option_param(self):
+        with self.assertRaises(blobc.ParseError):
+            d = self._get_output('''
+                generator m68k : emit(foo=bar);
+            ''')
+
+    def test_div_by_zero(self):
+        with self.assertRaises(blobc.ParseError):
+            d = self._get_output('''
+                iconst b = 1;
+                iconst a = 7 / (b - 1);
+            ''')

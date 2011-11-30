@@ -1,3 +1,4 @@
+import blobc
 
 class OptionContainer(object):
     def __init__(self, options):
@@ -152,7 +153,7 @@ class RawDivExpr(RawBinOpExpr):
         l = self.eval_l(env)
         r = self.eval_r(env)
         if r == 0:
-            raise ParseError(self.location(), "division by zero")
+            raise blobc.ParseError(self.location.filename, self.location.lineno, "division by zero")
         return l / r
 
 class RawAddExpr(RawBinOpExpr):

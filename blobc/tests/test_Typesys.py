@@ -11,7 +11,7 @@ class ConstantEnvTest(unittest.TestCase):
         with self.assertRaises(TypeSystemException):
             e.lookup_value(None, 'a')
 
-    def test_empty(self):
+    def test_simple(self):
         e = ConstantEnv()
         e.define(None, 'foo', 7)
         self.assertEqual(e.lookup_value(None, 'foo'), 7)

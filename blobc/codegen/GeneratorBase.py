@@ -42,12 +42,15 @@ class GeneratorBase(object):
 
         # optionally drop import information
         if not merge_imports:
-            for t in type_system.itertypes():
-                loc = t.location
+            def visit_loc(loc):
                 if loc.is_import:
                     if loc.filename not in imports:
                         self.visit_import(loc.filename)
                         imports.append(loc.filename)
+            for t in type_system.itertypes():
+                visit_loc(t.location)
+            for name, value, loc in type_system.iterconsts():
+                visit_loc(loc)
         else:
             # override import flag to pretend everything was local
             for t in type_system.itertypes():

@@ -60,6 +60,10 @@ class String(Array):
         return self.items[:-1]
 
 class VoidType(BaseType):
+    def __init__(self):
+        BaseType.__init__(self)
+        self.location = SourceLocation('none', 0, True)
+
     def __str__(self):
         return '<any>'
 
@@ -313,7 +317,7 @@ class StructType(BaseType):
         self._memhash = {}
         self.base_type = None # struct type included in this type
         self.classobj = None
-        self._str = 'struct ' + name
+        self._str = name
 
     def member_by_name(self, name):
         return self._memhash.get(name)

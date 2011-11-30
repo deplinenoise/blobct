@@ -471,43 +471,82 @@ class Parser(object):
     def r_unit(self):
         return self.repeat(self.r_toplevel, TOK_EOF)
 
-def doparse(fn, data, is_import=False):
-    tokenizer = Tokenizer(fn, data, is_import)
-    parser = Parser(tokenizer)
-    return parser.r_unit()
+class DefaultImportHandler:
+    def __init__(self, dirs):
+        self._dirs = dirs
 
-def parse_string(data):
-    return doparse('<string>', data)
+    def get_import_contents(self, fn):
+        with open(fn, 'r') as fn:
+            return f.read()
 
-def find_imported_file(fn, dirs):
-    for d in dirs:
-        fpath = os.path.normpath(os.path.join(d, fn))
-        if os.path.exists(fpath):
-            return fpath
+    def find_imported_file(self, fn):
+        for d in self._dirs:
+            fpath = os.path.normpath(os.path.join(d, fn))
+            if os.path.exists(fpath):
+                return fpath
+        raise None
 
-def parse_file(fn, handle_imports=False, import_dirs=('.'), import_memo={}, depth=0):
-    with open(fn, 'r') as f:
-        data = f.read()
 
-    result = doparse(fn, data, depth)
+class ParseContext(object):
+    def __init__(self, handle_imports, import_handler):
+        assert import_handler
+        self._import_dirs=('.')
+        self._import_memo={}
+        self._import_handler = import_handler
+        self._handle_imports = handle_imports
 
-    if handle_imports:
+    def _load_file(self, fn):
+        self._import_memo[fn] = True
+        return self._import_handler.get_import_contents(fn)
+
+    def parse(self, fn, is_import=False):
+        data = self._load_file(fn)
+        tokenizer = Tokenizer(fn, data, is_import)
+        parser = Parser(tokenizer)
+        result = parser.r_unit()
+
+        if not self._handle_imports:
+            return result
+
         iresult = []
         for r in result:
             if isinstance(r, RawImportStmt):
-                imported_fn = find_imported_file(r.filename, import_dirs)
+                imported_fn = self._import_handler.find_imported_file(r.filename)
                 if not imported_fn:
-                    raise ParseError(r.loc.filename, r.loc.lineno, "couldn't find '%s' in any of %s'" %
-                            (r.filename, ', '.join(import_dirs)))
-                if not import_memo.has_key(imported_fn):
+                    raise ParseError(
+                            r.location.filename,
+                            r.location.lineno,
+                            "couldn't find '%s' in any of %s'" %
+                                (r.filename, ', '.join(self._import_dirs)))
+                if not self._import_memo.has_key(imported_fn):
                     # todo: should make an effort of using real absolute names here
-                    import_memo[imported_fn] = True
-                    iresult.extend(parse_file(imported_fn, True, import_dirs, import_memo, depth+1))
+                    iresult.extend(self.parse(imported_fn, is_import=True))
             else:
                 iresult.append(r)
         return iresult
-    else:
-        return result
+
+class StringImportHandler:
+    def __init__(self, s):
+        self._s = s
+
+    def get_import_contents(self, fn):
+        s = self._s
+        self._s = None
+        return s
+
+    def find_imported_file(self, fn):
+        return '<string>' if self._s is not None else None
+
+def parse_string(string):
+    import_handler = StringImportHandler(string)
+    ctx = ParseContext(False, import_handler)
+    return ctx.parse('<string>')
+
+def parse_file(fn, handle_imports=True, import_handler=None, import_dirs=None):
+    if import_handler is None:
+        import_handler = DefaultImportHandler(import_dirs or ('.',))
+    ctx = ParseContext(handle_imports, import_handler)
+    return ctx.parse(fn)
 
 if __name__ == '__main__':
     import sys
