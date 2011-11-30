@@ -411,7 +411,6 @@ class PrimitiveType(BaseType):
         self.name = name
         self.location = loc
         self.size = size
-        self.is_external = False
 
     def compute_size(self, targmach):
         return self.size, self.size
@@ -614,9 +613,6 @@ class TypeSystem(object):
             o = CharacterType(name, size, loc)
         else:
             raise TypeSystemException(loc, "%s: unsupported primitive class '%s'" % (name, pclass))
-
-        opts = p.get_options('external')
-        o.is_external = len(opts) > 0
 
         self._add_type(name, o)
 

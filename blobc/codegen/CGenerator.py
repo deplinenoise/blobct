@@ -143,10 +143,8 @@ class CGenerator(GeneratorBase):
             size = t.size
             if size == 1:
                 return 'char'
-            elif size == 2:
-                return 'BLOBC_CHAR2_T'
-            elif size == 4:
-                return 'BLOBC_CHAR4_T'
+            else:
+                raise GeneratorException("only 8-bit char not supported")
         else:
             assert false
 
@@ -200,18 +198,15 @@ class CGenerator(GeneratorBase):
         self._separator('primitives')
 
         for t in self._primitives:
-            if not t.is_external:
-                prim_name = self.find_prim(t)
-                if prim_name != t.name:
-                    if not t.location.is_import:
-                        self.fh.write('typedef %s %s;\n' % (prim_name, self.ctypename(t)))
-                    else:
-                        self.ctypename(t)
+            prim_name = self.find_prim(t)
+            if prim_name != t.name:
+                if not t.location.is_import:
+                    self.fh.write('typedef %s %s;\n' % (prim_name, self.ctypename(t)))
                 else:
-                    # map e.g. char -> char
-                    self._ctypename[t] = prim_name
+                    self.ctypename(t)
             else:
-                self._ctypename[t] = t.name
+                # map e.g. char -> char
+                self._ctypename[t] = prim_name
 
     def _emit_constants(self):
         if len(self._constants) == 0:
@@ -266,8 +261,6 @@ class CGenerator(GeneratorBase):
         self._separator('structs')
 
         for t in self._struct_order_list:
-            if t.location.is_import:
-                continue
             self.fh.write('\ntypedef struct %s%s%s' % (t.name, self._struct_suffix, self._obrace))
             for m in t.members:
                 self.fh.write(self._indent)
@@ -302,8 +295,6 @@ class CGenerator(GeneratorBase):
             return
 
         for t in self._structs:
-            if t.location.is_import:
-                continue
             name = t.name
             sizes = [(tm, tm.size_align(t)) for tm in self._tms]
             aux.write('typedef char sizecheck_%s_ [\n' % (name))

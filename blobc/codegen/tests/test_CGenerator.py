@@ -347,6 +347,16 @@ class TestCodeGen_C(unittest.TestCase):
             'foo': 'struct Foo { u32 Field; };'
         }, print_includes=False)
 
+    def test_dont_emit_imported_primitive(self):
+        self._check('import "foo";', '', imports={
+            'foo': 'defprimitive torsk uint 1;'
+        }, print_includes=False)
+
+    def test_dont_emit_imported_enum(self):
+        self._check('import "foo";', '', imports={
+            'foo': 'enum torsk { A, B };'
+        }, print_includes=False)
+
     def test_include_guard(self):
         out = self._compile('',include_guard=True, no_primitives=True)
         self.assertTrue(out.find('#ifndef') != -1)
@@ -354,7 +364,12 @@ class TestCodeGen_C(unittest.TestCase):
         self.assertTrue(out.find('#endif') != -1)
 
     def test_separators(self):
-        out = self._compile('',include_guard=True, no_primitives=True)
-        self.assertTrue(out.find('#ifndef') != -1)
-        self.assertTrue(out.find('#define') != -1)
-        self.assertTrue(out.find('#endif') != -1)
+        d = self._compile('struct Foo { void* Bar; }', include_guard=True, no_primitives=True, separators=True)
+        self.assertTrue(d.count('/*') > 0)
+
+    def test_inttypes_hdr(self):
+        self._check('', '#include <inttypes.h>', no_primitives=True, inttypes=True)
+
+    def test_no_wide_char_yet(self):
+        with self.assertRaises(blobc.codegen.GeneratorException):
+            self._compile('defprimitive fisk character 2;', no_primitives=True, inttypes=True)
