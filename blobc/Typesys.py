@@ -43,7 +43,7 @@ class Array(object):
         self.items = [ntype.create_value(x) for x in items]
         self.item_type = ntype
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return "<%s>%s" % (str(self.item_type), repr(self.items))
 
     def __str__(self):
@@ -53,7 +53,7 @@ class String(Array):
     def __init__(self, char_type, text):
         Array.__init__(self, char_type, text + '\0')
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return "'%s'" % (self.items[:-1])
 
     def __str__(self):
@@ -127,7 +127,7 @@ class PointerType(BaseType):
             else:
                 raise TypeSystemException(None, '%s cannot point to %s' % (str(self), str(v)))
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return self._str
 
     def __str__(self):
@@ -203,7 +203,7 @@ class ArrayType(BaseType):
         for item in datum.items:
             self.base_type.serialize(serializer, item)
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return self._str
 
     def __str__(self):
@@ -399,7 +399,7 @@ class StructType(BaseType):
         if sz != actual_size:
             raise TypeSystemException(None, "%s serialized to %d bytes; expected %d" % (self.name, actual_size, sz))
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return self._str
 
     def __str__(self):
@@ -415,7 +415,7 @@ class PrimitiveType(BaseType):
     def compute_size(self, targmach):
         return self.size, self.size
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return self.name
 
     def __str__(self):

@@ -30,7 +30,7 @@ class CodegenTestDriver(object):
 
     def _apply_options(self, stream, kwargs):
         """Override to apply options and print to stream"""
-        pass
+        pass # pragma: no cover
 
     def run(self, src, kwargs):
         src_text = StringIO()
