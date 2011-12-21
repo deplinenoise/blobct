@@ -1,0 +1,27 @@
+
+generator csharp : namespace("Fiskrens");
+
+defprimitive u8 uint 1;
+defprimitive u16 uint 2;
+defprimitive u32 uint 4;
+defprimitive float float 4;
+defprimitive char character 1;
+
+iconst FooConst = 3;
+
+struct fisk_base {
+    u32 meh;
+}
+
+struct fisk : base(fisk_base) {
+	float beh;
+}
+
+
+struct moo {
+	u32* po;
+    __cstring<char> text;
+	fisk[FooConst] array;
+	float[2,2] array2;
+}
+

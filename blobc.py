@@ -12,6 +12,7 @@ parser = argparse.ArgumentParser(description = 'Generate source code from blob d
 languages = {
     'm68k': M68kGenerator,
     'c' : CGenerator,
+    'csharp' : CSharpGenerator,
 }
 
 parser.add_argument('input_fn', metavar='<source file>',

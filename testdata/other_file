@@ -1,6 +1,7 @@
 
 generator c : indent_style(tabs), brace_style("k&r");
 generator m68k : include_suffix(".inc");
+generator csharp : namespace("Fiskrens");
 
 defprimitive s8 sint 1;
 defprimitive s16 sint 2;

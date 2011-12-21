@@ -1,0 +1,4 @@
+*.exe
+*.mdb
+*.dll
+foo_gen.cs

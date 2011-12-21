@@ -330,7 +330,7 @@ class Parser(object):
             if size not in (4, 8):
                 self.error('unsupported floating-point primitive size %d; 4 and 8 supported' % (size))
         else:
-            self.error('unsupported primitive class %s; sint, uint and float supported' % (pclass))
+            self.error('unsupported primitive class %s; sint, uint, character and float supported' % (pclass))
 
         self.accept(TOK_PUNCT, ';')
 
