@@ -5,10 +5,10 @@ This is blobc. It provides two things:
   structure definitions. This is useful to keep such definitions in sync
   between C and Assembly code.
 
-- A Python library for generating and saving data structure "blobs". These
+- Python and C# libraries for generating and saving data structure "blobs". These
   blobs are defined in an endian and pointer-size neutral manner and are then
   frozen and saved together with relocation data for pointer fixup given a
   definition of the target machine.
 
 Put together this makes it a convenient toolkit to generate memory-mapped or
-data structures for in-place loading from Python.
+data structures for in-place loading.
