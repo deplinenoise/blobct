@@ -8,11 +8,11 @@ using System.Collections.Generic;
 
 namespace BlobCt
 {
-    public class BlobException : Exception
-    {
-        public BlobException(string message) : base(message)
-        {}
-    }
+	public class BlobException : Exception
+	{
+		public BlobException(string message) : base(message)
+		{}
+	}
 
 	public interface IPointerTarget<T>
 	{
@@ -284,66 +284,66 @@ namespace BlobCt
 
 	// {{{ BlobSerializer
 	public class BlobSerializer
-    {
-        public byte PaddingByte { get; set; }
-        public bool BigEndian { get; set; }
+	{
+		public byte PaddingByte { get; set; }
+		public bool BigEndian { get; set; }
 
-        public byte PointerSize { get; set; }
+		public byte PointerSize { get; set; }
 
-        public int ShortAlignment { get; set; }
-        public int IntAlignment { get; set; }
-        public int FloatAlignment { get; set; }
-        public byte PointerAlignment { get; set; }
+		public int ShortAlignment { get; set; }
+		public int IntAlignment { get; set; }
+		public int FloatAlignment { get; set; }
+		public byte PointerAlignment { get; set; }
 
-        private class Segment
-        {
+		private class Segment
+		{
 			public int Align = 0;
-            public readonly MemoryStream Stream = new MemoryStream();
-            public Segment Next, Prev;
-        }
-        
-        private struct Locator
-        {
-            public Segment Segment;
-            public long Offset;
-        }
+			public readonly MemoryStream Stream = new MemoryStream();
+			public Segment Next, Prev;
+		}
+		
+		private struct Locator
+		{
+			public Segment Segment;
+			public long Offset;
+		}
 
-        private struct Relocation
-        {
-            public Locator Source;
-            public Locator Target;
-        }
+		private struct Relocation
+		{
+			public Locator Source;
+			public Locator Target;
+		}
 
-        private Dictionary<object, Locator> m_locators = new Dictionary<object, Locator>();
-        private List<Relocation> m_relocs = new List<Relocation>();
+		private Dictionary<object, Locator> m_locators = new Dictionary<object, Locator>();
+		private List<Relocation> m_relocs = new List<Relocation>();
 
-        public BlobSerializer()
-        {
-            m_firstSegment = new Segment();
-            SetSegment(m_firstSegment);
+		public BlobSerializer()
+		{
+			m_firstSegment = new Segment();
+			SetSegment(m_firstSegment);
 
-            PaddingByte = 0x00;
-            BigEndian = true;
-            PointerSize = 4;
-            PointerAlignment = 4;
-            ShortAlignment = 2;
-            FloatAlignment = 4;
-            IntAlignment = 4;
-        }
+			PaddingByte = 0x00;
+			BigEndian = true;
+			PointerSize = 4;
+			PointerAlignment = 4;
+			ShortAlignment = 2;
+			FloatAlignment = 4;
+			IntAlignment = 4;
+		}
 
-        private Segment m_firstSegment;
-        private Segment m_stringSegment;
-        private Segment m_segment;
-        private Stream m_stream;
+		private Segment m_firstSegment;
+		private Segment m_stringSegment;
+		private Segment m_segment;
+		private Stream m_stream;
 
 		private void AlignStream(Stream s, int size)
 		{
-            Debug.Assert((size & ~(size - 1)) == size);
-            long pos = s.Position;
-            long alignedPos = (pos + size - 1) & ~(size - 1);
-            while (alignedPos > pos) {
-                s.WriteByte(PaddingByte);
-            }
+			Debug.Assert((size & ~(size - 1)) == size);
+			long pos = s.Position;
+			long alignedPos = (pos + size - 1) & ~(size - 1);
+			while (alignedPos > pos) {
+				s.WriteByte(PaddingByte);
+			}
 		}
 
 		public void Align(int size)
@@ -354,109 +354,109 @@ namespace BlobCt
 			AlignStream(m_stream, size);
 		}
 
-        private void SetSegment(Segment s)
-        {
-            m_segment = s;
-            m_stream = s.Stream;
-        }
+		private void SetSegment(Segment s)
+		{
+			m_segment = s;
+			m_stream = s.Stream;
+		}
 		
 		private void PushSegment()
 		{
-            Segment s = m_segment.Next;
+			Segment s = m_segment.Next;
 
-            if (null == s) {
-                s = new Segment { Prev = m_segment };
-                m_segment.Next = s;
-            }
+			if (null == s) {
+				s = new Segment { Prev = m_segment };
+				m_segment.Next = s;
+			}
 
-            SetSegment(s);
+			SetSegment(s);
 		}
 		
 		private void PopSegment()
 		{
-            SetSegment(m_segment.Prev);
+			SetSegment(m_segment.Prev);
 		}
 
-        private Locator CurrentPos()
-        {
-            return new Locator { Segment = m_segment, Offset = m_stream.Position };
-        }
+		private Locator CurrentPos()
+		{
+			return new Locator { Segment = m_segment, Offset = m_stream.Position };
+		}
 		
 		public void WriteByte(byte b)
-        {
-            m_stream.WriteByte(b);
-        }
+		{
+			m_stream.WriteByte(b);
+		}
 
-        private static byte SelB(uint val, int byteIndex)
-        {
-            return (byte) ((val >> (byteIndex * 8)) & 0xff);
-        }
+		private static byte SelB(uint val, int byteIndex)
+		{
+			return (byte) ((val >> (byteIndex * 8)) & 0xff);
+		}
 
-        private static byte SelB(int val, int byteIndex)
-        {
-            return (byte) ((val >> (byteIndex * 8)) & 0xff);
-        }
+		private static byte SelB(int val, int byteIndex)
+		{
+			return (byte) ((val >> (byteIndex * 8)) & 0xff);
+		}
 
 		public void WriteUshort(ushort b)
-        {
-            Align(ShortAlignment);
-            Stream s = m_stream;
-            if (BigEndian)
-            {
-                s.WriteByte(SelB(b, 1));
-                s.WriteByte(SelB(b, 0));
-            }
-            else
-            {
-                s.WriteByte(SelB(b, 0));
-                s.WriteByte(SelB(b, 1));
-            }
-        }
+		{
+			Align(ShortAlignment);
+			Stream s = m_stream;
+			if (BigEndian)
+			{
+				s.WriteByte(SelB(b, 1));
+				s.WriteByte(SelB(b, 0));
+			}
+			else
+			{
+				s.WriteByte(SelB(b, 0));
+				s.WriteByte(SelB(b, 1));
+			}
+		}
 
 		private void WriteUint(Stream s, uint b)
-        {
-            AlignStream(s, IntAlignment);
-            if (BigEndian)
-            {
-                s.WriteByte(SelB(b, 3));
-                s.WriteByte(SelB(b, 2));
-                s.WriteByte(SelB(b, 1));
-                s.WriteByte(SelB(b, 0));
-            }
-            else
-            {
-                s.WriteByte(SelB(b, 0));
-                s.WriteByte(SelB(b, 1));
-                s.WriteByte(SelB(b, 2));
-                s.WriteByte(SelB(b, 3));
-            }
-        }
+		{
+			AlignStream(s, IntAlignment);
+			if (BigEndian)
+			{
+				s.WriteByte(SelB(b, 3));
+				s.WriteByte(SelB(b, 2));
+				s.WriteByte(SelB(b, 1));
+				s.WriteByte(SelB(b, 0));
+			}
+			else
+			{
+				s.WriteByte(SelB(b, 0));
+				s.WriteByte(SelB(b, 1));
+				s.WriteByte(SelB(b, 2));
+				s.WriteByte(SelB(b, 3));
+			}
+		}
 
 		public void WriteUint(uint b)
-        {
+		{
 			WriteUint(m_stream, b);
-        }
+		}
 
 		public void WriteSbyte(sbyte b) { WriteByte((byte)b); }
 		public void WriteShort(short b) { WriteUshort((ushort)b); }
 		public void WriteInt(int b) { WriteUint((uint)b); }
 
 		public void WriteFloat(float b)
-        {
-            byte[] data = BitConverter.GetBytes(b);
+		{
+			byte[] data = BitConverter.GetBytes(b);
 
-            if (BitConverter.IsLittleEndian && this.BigEndian)
-                Array.Reverse(data);
+			if (BitConverter.IsLittleEndian && this.BigEndian)
+				Array.Reverse(data);
 
-            Align(IntAlignment);
-            m_stream.Write(data, 0, 4);
-        }
+			Align(IntAlignment);
+			m_stream.Write(data, 0, 4);
+		}
 
 		private void WritePointerValue(Stream s, long val)
 		{
-            // Write size of a pointer. For null pointers,
-            // these will be untouched. For real pointers, we will go back and
-            // fix them up later via the m_relocs list.
+			// Write size of a pointer. For null pointers,
+			// these will be untouched. For real pointers, we will go back and
+			// fix them up later via the m_relocs list.
 			if (BigEndian)
 			{
 				for (int i = (PointerSize-1) * 8; i >= 0; i -= 8)
@@ -470,30 +470,30 @@ namespace BlobCt
 		}
 
 		public void WritePointer<T>(Pointer<T> t)
-        {
-            Align(PointerAlignment);
-            Stream stream = m_stream;
+		{
+			Align(PointerAlignment);
+			Stream stream = m_stream;
 
-            if (t.Target != null)
-            {
-                Locator position;
-                if (!m_locators.TryGetValue(t.Target, out position))
-                {
-                    PushSegment();
-                    position = m_locators[t] = CurrentPos();
-                    Write(t.Target);
-                    PopSegment();
-                }
-                m_relocs.Add(new Relocation { Source = CurrentPos(), Target = position });
-            }
+			if (t.Target != null)
+			{
+				Locator position;
+				if (!m_locators.TryGetValue(t.Target, out position))
+				{
+					PushSegment();
+					position = m_locators[t] = CurrentPos();
+					Write(t.Target);
+					PopSegment();
+				}
+				m_relocs.Add(new Relocation { Source = CurrentPos(), Target = position });
+			}
 
 			WritePointerValue(stream, 0);
- 		}
+		}
 
 		private Dictionary<string, Locator> m_strings = new Dictionary<string, Locator>();
 
 		private Locator GetStringLocator(string t)
-        {
+		{
 			// Could optimize this by writing strings when all data is
 			// collected to map substrings onto longer strings.
 
@@ -519,15 +519,15 @@ namespace BlobCt
 		}
 
 		public void WriteStringPointer(string t)
-        {
-            if (t != null)
-            {
-                Locator position = GetStringLocator(t);
-                m_relocs.Add(new Relocation { Source = CurrentPos(), Target = position });
-            }
+		{
+			if (t != null)
+			{
+				Locator position = GetStringLocator(t);
+				m_relocs.Add(new Relocation { Source = CurrentPos(), Target = position });
+			}
 
 			WritePointerValue(m_stream, 0);
-        }
+		}
 
 		public void Write<T>(IPointerTarget<T> obj)
 		{
@@ -658,31 +658,31 @@ namespace BlobCt
 
 		public BlobArray()
 		{
-            m_storage = new List<T>();
+			m_storage = new List<T>();
 		}
 
-        public BlobArray(int fixedSize)
+		public BlobArray(int fixedSize)
 		{
-            m_storage = new T[fixedSize];
+			m_storage = new T[fixedSize];
 		}
 		
 		public int IndexOf(T item)
-        {
-            return m_storage.IndexOf(item);
-        }
+		{
+			return m_storage.IndexOf(item);
+		}
 
 		public void Insert(int index, T item)
-        {
-            m_storage.Insert(index, item);
-        }
+		{
+			m_storage.Insert(index, item);
+		}
 
 		public void RemoveAt(int index)
-        {
-            m_storage.RemoveAt(index);
-        }
+		{
+			m_storage.RemoveAt(index);
+		}
 
 		public T this [int index]
-        {
+		{
 			get { return m_storage[index]; }
 			set { m_storage[index] = value; }
 		}
