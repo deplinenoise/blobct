@@ -86,7 +86,7 @@ class CSharpGenerator(GeneratorBase):
 
     def _generate_enums(self):
         for t in self._enums:
-            self.fh.write('enum %s\n{\n' % (csharpify_name(t.name)))
+            self.fh.write('public enum %s\n{\n' % (csharpify_name(t.name)))
 
             for m in t.members:
                 self.fh.write('\t%s = %d,\n' % (csharpify_name(m.name), m.value))
@@ -126,7 +126,9 @@ class CSharpGenerator(GeneratorBase):
     def _csharp_type(self, t):
         if isinstance(t, StructType):
             return csharpify_name(t.name)
-        if isinstance(t, PrimitiveType):
+        elif isinstance(t, EnumType):
+            return csharpify_name(t.name)
+        elif isinstance(t, PrimitiveType):
             return self._primitive_type_name(t)
         elif isinstance(t, ArrayType):
             return 'BlobCt.BlobArray<%s>' % (self._csharp_type(t.base_type))
