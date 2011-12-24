@@ -484,7 +484,7 @@ class DefaultImportHandler:
             fpath = os.path.normpath(os.path.join(d, fn))
             if os.path.exists(fpath):
                 return fpath
-        raise None
+        return None
 
 
 class ParseContext(object):
@@ -516,7 +516,7 @@ class ParseContext(object):
                     raise ParseError(
                             r.location.filename,
                             r.location.lineno,
-                            "couldn't find '%s' in any of %s'" %
+                            "couldn't find '%s' in any of [%s]" %
                                 (r.filename, ', '.join(self._import_dirs)))
                 if not self._import_memo.has_key(imported_fn):
                     # todo: should make an effort of using real absolute names here
