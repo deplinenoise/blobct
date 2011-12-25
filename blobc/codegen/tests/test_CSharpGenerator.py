@@ -96,7 +96,7 @@ class TestCodeGen_CSharp(unittest.TestCase):
             enum foo { a = 0, b = 1, c, d = a + b }
         ''', '''
             using System;
-            enum Foo { A = 0, B = 1, C = 2, D = 1, }
+            public enum Foo { A = 0, B = 1, C = 2, D = 1, }
         ''')
 
     def test_single_enum(self):
@@ -104,7 +104,7 @@ class TestCodeGen_CSharp(unittest.TestCase):
             enum foo { a }
         ''', '''
             using System;
-            enum Foo { A = 0, }
+            public enum Foo { A = 0, }
         ''')
 
     def test_member_csharp_name(self):
@@ -167,10 +167,10 @@ class TestCodeGen_CSharp(unittest.TestCase):
         self._check('''
             generator csharp : namespace("Fisk");
             enum foo { a }
-        ''', 'using System; namespace Fisk { enum Foo { A = 0, } }')
+        ''', 'using System; namespace Fisk { public enum Foo { A = 0, } }')
 
-    def test_void_raises(self):
-        self._check_raises('''
+    def test_void_ptr(self):
+        self._find_test('''
             struct foo { void* a; }
-        ''')
+        ''', ' private BlobCt.GenericPointer A_;')
 

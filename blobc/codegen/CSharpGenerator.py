@@ -135,7 +135,10 @@ class CSharpGenerator(GeneratorBase):
         elif isinstance(t, CStringType):
             return 'string'
         elif isinstance(t, PointerType):
-            return 'BlobCt.Pointer<%s>' % (self._csharp_type(t.base_type))
+            if isinstance(t.base_type, VoidType):
+                return 'BlobCt.GenericPointer'
+            else:
+                return 'BlobCt.Pointer<%s>' % (self._csharp_type(t.base_type))
         elif isinstance(t, VoidType):
             raise GeneratorException("void is not (yet) supported")
         else:
@@ -262,14 +265,14 @@ class CSharpGenerator(GeneratorBase):
                 fh.write('\t\t%s { throw new BlobCt.BlobException("cannot index value"); }\n' % (kw))
             fh.write('\t}\n\n')
 
-            fh.write('\tvoid BlobCt.IPointerTarget<%s>.ValidateOffset(int offset)\n\t{\n' % (sname))
+            fh.write('\tvoid BlobCt.IGenericPointerTarget.ValidateOffset(int offset)\n\t{\n')
             fh.write('\t}\n\n')
 
-            fh.write('\tvoid BlobCt.IPointerTarget<%s>.Align(BlobCt.BlobSerializer b)\n\t{\n' % (sname))
+            fh.write('\tvoid BlobCt.IGenericPointerTarget.Align(BlobCt.BlobSerializer b)\n\t{\n')
             fh.write('\t\tb.Align(%s);\n' % (self._csharp_align_expr(t).name()))
             fh.write('\t}\n\n')
 
-            fh.write('\tvoid BlobCt.IPointerTarget<%s>.WriteValue(BlobCt.BlobSerializer b)\n\t{\n' % (sname))
+            fh.write('\tvoid BlobCt.IGenericPointerTarget.WriteValue(BlobCt.BlobSerializer b)\n\t{\n')
             for line in writer:
                 fh.write('\t\t%s;\n' % (line))
             fh.write('\t}\n\n')

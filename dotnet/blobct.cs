@@ -14,12 +14,16 @@ namespace BlobCt
 		{}
 	}
 
-	public interface IPointerTarget<T>
+	public interface IGenericPointerTarget
 	{
-		T this [int index] { get; set; }
 		void Align(BlobSerializer s);
 		void WriteValue(BlobSerializer s);
 		void ValidateOffset(int Offset);
+	}
+
+	public interface IPointerTarget<T> : IGenericPointerTarget
+	{
+		T this [int index] { get; set; }
 	}
 
 	interface IBlobTypeDescriptor<T>
@@ -257,6 +261,31 @@ namespace BlobCt
 	}
 	// }}}
 
+	// {{{ GenericPointerTypeDescriptor
+	class GenericPointerTypeDescriptor : IBlobTypeDescriptor<GenericPointer>
+	{
+		public GenericPointerTypeDescriptor(BlobSerializer s)
+		{
+		}
+
+		public void Align(BlobSerializer s, GenericPointer val)
+		{
+			s.Align(s.PointerAlignment);
+		}
+
+		public void WriteValue(BlobSerializer s, GenericPointer val)
+		{
+			s.WritePointer(val);
+		}
+
+		public void WriteSequence(BlobSerializer s, IEnumerable<GenericPointer> seq)
+		{
+			foreach (GenericPointer val in seq)
+				s.WritePointer(val);
+		}
+	}
+	// }}}
+
 	// {{{ BlobSerializableDesc<T>
 	class BlobSerializableDesc<T> : IBlobTypeDescriptor<T>
 	{
@@ -469,25 +498,35 @@ namespace BlobCt
 			}
 		}
 
-		public void WritePointer<T>(Pointer<T> t)
+		private void WritePointerInternal(IGenericPointerTarget t)
 		{
 			Align(PointerAlignment);
 			Stream stream = m_stream;
 
-			if (t.Target != null)
+			if (t != null)
 			{
 				Locator position;
-				if (!m_locators.TryGetValue(t.Target, out position))
+				if (!m_locators.TryGetValue(t, out position))
 				{
 					PushSegment();
 					position = m_locators[t] = CurrentPos();
-					Write(t.Target);
+					Write(t);
 					PopSegment();
 				}
 				m_relocs.Add(new Relocation { Source = CurrentPos(), Target = position });
 			}
 
 			WritePointerValue(stream, 0);
+		}
+
+		public void WritePointer<T>(Pointer<T> t)
+		{
+			WritePointerInternal(t.Target);
+		}
+
+		public void WritePointer(GenericPointer t)
+		{
+			WritePointerInternal(t.Target);
 		}
 
 		private Dictionary<string, Locator> m_strings = new Dictionary<string, Locator>();
@@ -529,7 +568,7 @@ namespace BlobCt
 			WritePointerValue(m_stream, 0);
 		}
 
-		public void Write<T>(IPointerTarget<T> obj)
+		public void Write(IGenericPointerTarget obj)
 		{
 			obj.Align(this);
 			obj.WriteValue(this);
@@ -705,6 +744,11 @@ namespace BlobCt
 		public int Count { get { return m_storage.Count; } }
 		public bool IsReadOnly { get { return false; } }
 
+		public static implicit operator GenericPointer(BlobArray<T> obj)
+		{
+			return new GenericPointer { Target = obj };
+		}
+
 		public static implicit operator Pointer<T>(BlobArray<T> obj)
 		{
 			return new Pointer<T> { Target = obj };
@@ -717,18 +761,18 @@ namespace BlobCt
 			return new Pointer<T> { Target = this, Offset = elem };
 		}
 
-		void IPointerTarget<T>.Align(BlobSerializer s)
+		void IGenericPointerTarget.Align(BlobSerializer s)
 		{
 			if (Count > 0)
 				s.GetDescriptor<T>().Align(s, this[0]);
 		}
 
-		void IPointerTarget<T>.WriteValue(BlobSerializer s)
+		void IGenericPointerTarget.WriteValue(BlobSerializer s)
 		{
 			s.GetDescriptor<T>().WriteSequence(s, this);
 		}
 		
-		void IPointerTarget<T>.ValidateOffset(int offset)
+		void IGenericPointerTarget.ValidateOffset(int offset)
 		{
 			if (offset < 0 || offset > this.Count)
 				throw new ApplicationException();
@@ -757,6 +801,19 @@ namespace BlobCt
 				Target[index] = value;
 			}
 		}
+
+		public static implicit operator GenericPointer(Pointer<T> t)
+		{
+			return new GenericPointer { Target = t.Target, Offset = t.Offset };
+		}
+	}
+	// }}}
+
+	// {{{ GenericPointer
+	public struct GenericPointer
+	{
+		public IGenericPointerTarget Target;
+		public int Offset;
 	}
 	// }}}
 }
