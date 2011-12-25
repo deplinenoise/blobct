@@ -94,9 +94,8 @@ class CSharpGenerator(GeneratorBase):
             self.fh.write('}\n')
 
     def _member_name(self, m):
-        name_opt = m.get_options('csharp_name')
-        if len(name_opt) > 0:
-            return str(name_opt[0].pos_params[0])
+        if m.has_option('csharp_name'):
+            return str(m.get_options('csharp_name')[0].pos_params[0])
         else:
             return csharpify_name(m.mname)
 
@@ -123,7 +122,7 @@ class CSharpGenerator(GeneratorBase):
                 return 'char'
         raise GeneratorException("primitive type %s not supported" % (str(t)))
 
-    def _csharp_type(self, t):
+    def _csharp_type_impl(self, t):
         if isinstance(t, StructType):
             return csharpify_name(t.name)
         elif isinstance(t, EnumType):
@@ -131,18 +130,27 @@ class CSharpGenerator(GeneratorBase):
         elif isinstance(t, PrimitiveType):
             return self._primitive_type_name(t)
         elif isinstance(t, ArrayType):
-            return 'BlobCt.BlobArray<%s>' % (self._csharp_type(t.base_type))
+            return 'BlobCt.BlobArray<%s>' % (self._csharp_type_impl(t.base_type))
         elif isinstance(t, CStringType):
             return 'string'
         elif isinstance(t, PointerType):
             if isinstance(t.base_type, VoidType):
                 return 'BlobCt.GenericPointer'
             else:
-                return 'BlobCt.Pointer<%s>' % (self._csharp_type(t.base_type))
+                return 'BlobCt.Pointer<%s>' % (self._csharp_type_impl(t.base_type))
         elif isinstance(t, VoidType):
-            raise GeneratorException("void is not (yet) supported")
+            raise GeneratorException("void fields are not upported")
         else:
             raise GeneratorException("type %s not supported" % (str(t)))
+
+    def _csharp_type(self, m, t):
+        if m.has_option('csharp_array'):
+            if isinstance(t, PointerType):
+                return 'BlobCt.BlobArray<%s>' % (self._csharp_type_impl(t.base_type))
+            else:
+                raise GeneratorException("csharp_array can only be used on pointer types")
+        else:
+            return self._csharp_type_impl(t)
 
     def _csharp_writefunc(self, t):
         if isinstance(t, StructType):
@@ -210,17 +218,19 @@ class CSharpGenerator(GeneratorBase):
             fh.write('\tconst int %s = %d;\n' % (csharpify_name(t[0]), t[1]))
         fh.write('}\n\n')
 
-    def _generate_initializers(self, ctor_list, lvalue, mtype, indent=''):
-        if isinstance(mtype, ArrayType):
-            ctor_list.append('%s%s = new %s(%d);' % (indent, lvalue, self._csharp_type(mtype), mtype.dim))
+    def _generate_initializers(self, ctor_list, lvalue, m, mtype, indent=''):
+        if isinstance(mtype, PointerType) and len(m.get_options('csharp_array')) > 0:
+            ctor_list.append('%s%s = new %s();' % (indent, lvalue, self._csharp_type(m, mtype)))
+        elif isinstance(mtype, ArrayType):
+            ctor_list.append('%s%s = new %s(%d);' % (indent, lvalue, self._csharp_type(m, mtype), mtype.dim))
             base = mtype.base_type
             if isinstance(base, ArrayType) or isinstance(base, StructType):
                 ctor_list.append('%sfor (int x = 0; x < %d; ++x)' % (indent, mtype.dim))
                 ctor_list.append('%s{' % (indent))
-                self._generate_initializers(ctor_list, lvalue + '[x]', mtype.base_type, indent = indent + '\t')
+                self._generate_initializers(ctor_list, lvalue + '[x]', m, mtype.base_type, indent = indent + '\t')
                 ctor_list.append('%s}' % (indent))
         elif isinstance(mtype, StructType):
-            ctor_list.append('%s%s = new %s();' % (indent, lvalue, self._csharp_type(mtype)))
+            ctor_list.append('%s%s = new %s();' % (indent, lvalue, self._csharp_type(m, mtype)))
 
     def _generate_structs(self):
         fh = self.fh
@@ -231,26 +241,33 @@ class CSharpGenerator(GeneratorBase):
             fh.write('public class %s : BlobCt.IPointerTarget<%s>\n{\n' % (sname, sname))
             for m in t.members:
                 mname = self._member_name(m)
-                mtypename = self._csharp_type(m.mtype)
+                mtypename = self._csharp_type(m, m.mtype)
                 field_name = mname + '_'
-                fh.write('\tprivate %s %s;\n' % (mtypename, field_name))
 
-                if isinstance(m.mtype, ArrayType):
+                if not m.has_option('csharp_array_count'):
+                    fh.write('\tprivate %s %s;\n' % (mtypename, field_name))
+
+                if isinstance(m.mtype, ArrayType) or m.has_option('csharp_array'):
                     fh.write('\tpublic %s %s { get { return %s; } }\n\n' % (mtypename, mname, field_name))
                 elif isinstance(m.mtype, StructType):
                     fh.write('\tpublic %s %s {\n' % (mtypename, mname))
                     fh.write('\t\tget { return %s; }\n' % (field_name))
                     fh.write('\t\tset {\n')
                     fh.write('\t\t\tif (value == null) throw new BlobCt.BlobException("%s");\n' % (mname))
-                    fh.write('\t\t\t%s_ = value;\n' % (field_name))
+                    fh.write('\t\t\t%s = value;\n' % (field_name))
                     fh.write('\t\t}\n\t}\n')
+                elif m.has_option('csharp_array_count'):
+                    targ_field = m.get_options('csharp_array_count')[0].pos_params[0]
+                    fh.write('\tpublic %s %s { get { return (%s) %s.Count; } }\n\n' %
+                            (mtypename, mname, mtypename, csharpify_name(targ_field)))
                 else:
                     fh.write('\tpublic %s %s { get { return %s; } set { %s = value; } }\n\n' %
                             (mtypename, mname, field_name, field_name))
 
-                self._generate_initializers(ctor, field_name, m.mtype)
+                self._generate_initializers(ctor, field_name, m, m.mtype)
 
                 write_func = self._csharp_writefunc(m.mtype)
+
                 writer.append('b.%s(%s)' % (write_func, mname))
 
             # constructor

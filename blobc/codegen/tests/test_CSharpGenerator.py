@@ -8,6 +8,23 @@ from blobc.codegen import CSharpGenerator, GeneratorException
 
 from .util import *
 
+class RequireText:
+    def __init__(self, string):
+        self._s = string
+
+    def match(self, input_text, tester):
+        tester.assertTrue(input_text.find(self._s) != -1,
+                "could not find %s in %s" % (self._s, input_text))
+
+class ForbidText:
+    def __init__(self, string):
+        self._s = string
+
+    def match(self, input_text, tester):
+        tester.assertTrue(input_text.find(self._s) == -1,
+                "found forbidden %s in %s" % (self._s, input_text))
+
+
 class TestCodeGen_CSharp(unittest.TestCase):
     class Driver(CodegenTestDriver):
         def _apply_options(self, stream, kwargs):
@@ -57,10 +74,12 @@ class TestCodeGen_CSharp(unittest.TestCase):
             public partial class Constants { const int Foo = 16; }
         ''')
 
-    def _find_test(self, source, *expected):
+    def _find_test(self, source, *ops):
         o = self._get_output(source)
-        for x in expected:
-            self.assertTrue(o.find(x) != -1, "could not find %s in %s" % (x, o))
+        for op in ops:
+            if isinstance(op, str):
+                op = RequireText(op)
+            op.match(o, self)
 
     def _dotest_type(self, pclass, size, expected_name):
         self._find_test(
@@ -173,4 +192,16 @@ class TestCodeGen_CSharp(unittest.TestCase):
         self._find_test('''
             struct foo { void* a; }
         ''', ' private BlobCt.GenericPointer A_;')
+
+    def test_array_field(self):
+        self._find_test('''
+            defprimitive X uint 4;
+            struct foo {
+                X acount : csharp_array_count(baz);
+                X* baz : csharp_array;
+            }
+        ''',
+        RequireText(' public BlobCt.BlobArray<uint> Baz '),
+        RequireText(' Baz_ = new BlobCt.BlobArray<uint>(); '),
+        RequireText(' public uint Acount { get { return (uint) Baz.Count; } '))
 

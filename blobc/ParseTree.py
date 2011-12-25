@@ -4,6 +4,13 @@ class OptionContainer(object):
     def __init__(self, options):
         self._options = options
 
+    def has_option(self, tag):
+        if self._options:
+            for o in self._options:
+                if o.name == tag:
+                    return True
+        return False
+
     def get_options(self, tag):
         if self._options:
             return [o for o in self._options if o.name == tag]

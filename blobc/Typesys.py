@@ -247,6 +247,9 @@ class StructMember(object):
         self.location = raw_member.location
         self.offset = -1 
 
+    def has_option(self, name):
+        return self.parse_node.has_option(name)
+
     def get_options(self, name):
         return self.parse_node.get_options(name)
 
